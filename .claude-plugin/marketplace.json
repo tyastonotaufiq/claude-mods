@@ -1,0 +1,21 @@
+{
+  "name": "claude-mods",
+  "owner": {
+    "name": "tyastonotaufiq"
+  },
+  "metadata": {
+    "description": "Claude Code mods with their own panes: ADB Explorer for Android files and Mac Cleaner for disk space"
+  },
+  "plugins": [
+    {
+      "name": "adb-explorer",
+      "source": "./adb-explorer",
+      "description": "Browse, pull, push and clean files on an Android device over adb, in an /adb-explorer pane"
+    },
+    {
+      "name": "mac-cleaner",
+      "source": "./mac-cleaner",
+      "description": "See what's using space on your Mac and move the junk to the Trash, from a /mac-cleaner pane"
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "name": "adb-explorer",
+  "version": "0.1.0",
+  "description": "Browse, pull, push and clean files on an Android device over adb, in an /adb-explorer pane inside Claude Code",
+  "author": { "name": "tyastono" },
+  "types": "./types/index.d.ts"
+}
