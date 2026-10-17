@@ -11,7 +11,26 @@ A Claude Code plugin for browsing and managing files on an Android device over `
 
 - Claude Code v2.1.287 or later, in the terminal or the Code tab of the Claude Desktop app
 - `adb`. If you have Android Studio, you already have it: the pane finds it in `$ANDROID_HOME`, `$ANDROID_SDK_ROOT` or `~/Library/Android/sdk`, and uses it before any other copy so it doesn't fight Android Studio's adb server. Without Android Studio: `brew install android-platform-tools`.
-- On the phone: Developer options › **USB debugging** on, then tap **Allow** when the phone asks
+- On the phone: Developer options › **USB debugging** on, then tap **Allow** when the phone asks. Or connect over Wi-Fi instead, below.
+
+### Over Wi-Fi
+
+The pane works with a phone connected by Wireless debugging (Android 11 and later) the same way as over USB. The phone and the Mac must be on the same network.
+
+1. On the phone: Developer options › **Wireless debugging** on.
+2. In Android Studio: **Pair Devices Using Wi-Fi** (in the device menu on the toolbar, or in Device Manager), then scan the QR code or enter the pairing code.
+3. Press `r` in the pane.
+
+Android Studio pairs through the SDK's adb, the same one the pane uses, so a phone Studio paired shows up in the pane. Pairing is remembered: the next time Wireless debugging is on, adb finds the phone on the network and reconnects on its own, under a name like `adb-<serial>-xxxxxx._adb-tls-connect._tcp` that stays the same, so the pane also keeps your last folder.
+
+Without Android Studio, pair from a terminal. On the phone, tap **Pair device with pairing code**, then:
+
+```bash
+adb pair 192.168.1.23:37000      # the IP:port and code on the pairing screen
+adb connect 192.168.1.23:41235   # the IP:port on the Wireless debugging screen, if it doesn't connect on its own
+```
+
+If the phone is on USB and Wi-Fi at once, the device dropdown lists it twice; either works. Big copies are slower than over USB.
 
 ## Install
 
@@ -102,5 +121,6 @@ adb-explorer/
 ## Known limits
 
 - `/sdcard/Android/data` and `/sdcard/Android/obb` are blocked for adb on Android 11 and later.
+- The last folder is remembered per device serial. A phone connected with `adb connect IP:port` gets a new port each time Wireless debugging restarts, so the pane starts at `/sdcard` again.
 - No thumbnails: the pane is text. Pull a file and press `o` to view it.
 - The VS Code extension's chat panel and `claude -p` don't draw panes; the skill still works there.

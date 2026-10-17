@@ -12,7 +12,8 @@ You manage files on the user's Android device by running `adb` with the Bash too
 1. **Know what the user is looking at.** If they say "this folder", "these", "the marked files" or similar, call the `mcp__adb-explorer__adb_explorer_state` tool. It returns `paneOpen`. When `true`, it also gives the device serial, model, the pane's current folder and the paths they marked; treat those paths as the selection. When `false`, the pane is closed: don't say it's open, and suggest `/adb-explorer` if they want to browse.
 2. **Pick the device.** Run `adb devices -l`. Use only devices in state `device`.
    - `unauthorized`: ask the user to unlock the phone and tap Allow on the USB debugging prompt.
-   - No device: ask them to connect it by USB with USB debugging on.
+   - `offline`: on USB, ask them to unplug and replug it; on Wi-Fi (the serial is `IP:port` or ends in `._adb-tls-connect._tcp`), ask them to turn Wireless debugging off and on; a paired phone reconnects on its own.
+   - No device: ask them to connect it by USB with USB debugging on, or over Wi-Fi: Wireless debugging on, paired in Android Studio with Pair Devices Using Wi-Fi. Without Android Studio: `adb pair IP:port` with the code from the phone, then `adb connect IP:port`.
    - More than one: use the pane's device if the state tool returned one, otherwise ask which.
 3. **Always pass `-s <serial>`** to every adb command, so you never act on the wrong device.
 

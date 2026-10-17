@@ -414,8 +414,8 @@ export const register: Register = on => {
             {unauthorized
               ? 'Unlock the phone and tap Allow on the "Allow USB debugging?" prompt.'
               : offline
-                ? 'The device is offline. Unplug it and plug it back in.'
-                : 'Connect the phone by USB and turn on USB debugging (Settings › Developer options).'}
+                ? 'The device is offline. On USB, unplug it and plug it back in. On Wi-Fi, turn Wireless debugging off and on, then press r.'
+                : 'Connect the phone by USB with USB debugging on, or over Wi-Fi: turn on Wireless debugging (Settings › Developer options) and pair it in Android Studio with Pair Devices Using Wi-Fi.'}
           </Text>
           {status}
           <Button key="retry" label="Retry" hotkey="r" plain onPress={() => void reload($)} />

@@ -32,7 +32,7 @@ To run a mod in the Desktop app, open the **Code** tab, start a session, and typ
 ## Requirements
 
 - Claude Code v2.1.287 or later (terminal, or the Code tab of the Desktop app v2.1.286+)
-- ADB Explorer: `adb` from Android Studio's SDK (found automatically), or `brew install android-platform-tools` without Android Studio; and USB debugging on the phone
+- ADB Explorer: `adb` from Android Studio's SDK (found automatically), or `brew install android-platform-tools` without Android Studio; and USB debugging on the phone, or Wireless debugging over Wi-Fi
 - Mac Cleaner: macOS
 
 ## Safety
