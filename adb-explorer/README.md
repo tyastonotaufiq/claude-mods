@@ -2,7 +2,7 @@
 
 A Claude Code plugin for browsing and managing files on an Android device over `adb`, without leaving Claude Code.
 
-- **`/adb-explorer`** opens a pane: browse folders, see sizes, mark files, pull them to your Mac, push files to the phone, and delete with confirmation.
+- **`/adb-explorer`** opens a pane: browse folders, see sizes, mark files, pull them to your Mac, push files and folders to the phone (drag them in from Finder), and delete with confirmation.
 - **The `android-files` skill** lets you ask Claude in plain language: "how much space do my WhatsApp videos take?", "copy this year's screenshots to my Mac", "move the marked files to the trash".
 
 ![The /adb-explorer pane beside a Claude Code session, listing /sdcard on a Pixel 8](./docs/screenshot.png)
@@ -65,7 +65,7 @@ Run `/adb-explorer`, or `/adb-explorer /sdcard/DCIM` to start in a folder.
 | `s` | Measure folder sizes in this folder |
 | `p` | Pull marked items to `~/Downloads/adb-explorer/<model>/` |
 | `o` | Open the pulled folder in Finder |
-| `i` | Push a file from your Mac into this folder |
+| `i` | Push files or folders from your Mac into this folder: drag them from Finder onto the field, or type a path |
 | `x` | Delete marked items (asks first) |
 | `c` | Unmark everything |
 | `h` | Show or hide dotfiles |

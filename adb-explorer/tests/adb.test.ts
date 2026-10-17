@@ -2,12 +2,14 @@ import { describe, expect, test } from 'claude-code/testing'
 
 import {
   adbCandidates,
+  baseName,
   deleteCommand,
   humanSize,
   isDeletable,
   joinPath,
   parentPath,
   parseDevices,
+  parseDroppedPaths,
   parseList,
   parseSizes,
   shQuote,
@@ -94,5 +96,31 @@ describe('adb helpers', () => {
     expect(humanSize(512)).toBe('512 B')
     expect(humanSize(1536)).toBe('1.5 KB')
     expect(humanSize(250 * 1024 * 1024)).toBe('250 MB')
+  })
+
+  test('parses paths dropped into the push field', async () => {
+    const home = '/Users/me'
+    // Terminal.app and iTerm2: backslash-escaped, trailing space
+    expect(parseDroppedPaths('/Users/me/My\\ Photos ', home)).toEqual(['/Users/me/My Photos'])
+    // Several files dropped at once
+    expect(parseDroppedPaths('/a/one.jpg /a/two\\ 2.jpg', home)).toEqual(['/a/one.jpg', '/a/two 2.jpg'])
+    // Quoted, single or double, and an apostrophe escaped inside a name
+    expect(parseDroppedPaths(`'/a/My Photos' "/b/x y.mp4" /c/it\\'s.txt`, home)).toEqual([
+      '/a/My Photos',
+      '/b/x y.mp4',
+      "/c/it's.txt",
+    ])
+    // file:// URLs and ~/
+    expect(parseDroppedPaths('file:///Users/me/My%20Photos/ ~/Desktop/a.jpg', home)).toEqual([
+      '/Users/me/My Photos/',
+      '/Users/me/Desktop/a.jpg',
+    ])
+    expect(parseDroppedPaths("   ''  ", home)).toEqual([''])
+    expect(parseDroppedPaths('   ', home)).toEqual([])
+  })
+
+  test('base names for messages', async () => {
+    expect(baseName('/Users/me/My Photos/')).toBe('My Photos')
+    expect(baseName('/a/b.jpg')).toBe('b.jpg')
   })
 })

@@ -11,8 +11,15 @@ const LISTINGS: Record<string, string> = {
   '/': 'directory/4096/1700000000/system',
 }
 
-// `files` are the adb binaries that exist on the fake Mac; with none, adb is on PATH.
+// `files` are the paths that exist on the fake Mac (adb binaries, files to
+// push); with no adb among them, adb is on PATH. Long copies go through
+// process.spawn and are recorded in `calls` too.
 function fakeAdb(on: any, calls: string[][], files: string[] = []) {
+  on('process.spawn', async function* (_$: unknown, e: { argv: readonly string[] }) {
+    calls.push([...e.argv])
+    yield { stream: 'stdout' as const, text: '1 file pushed.\n' }
+    return { value: { code: 0, signal: null } }
+  })
   on('fs.exists', async (_$: unknown, e: { path: string }) => ({ value: files.includes(e.path) }))
   on('process.run', async (_$: unknown, e: { argv: readonly string[] }) => {
     const argv = [...e.argv]
@@ -138,5 +145,58 @@ test('uses the Android SDK adb from ANDROID_HOME, not the one on PATH', async ($
   expect(await ui.find({ text: /Pixel 7/ })).toBeDefined()
   expect(calls.length).toBeGreaterThan(0)
   expect(calls.every(c => c[0] === SDK_ADB)).toBe(true)
+  await ui.unmount()
+})
+
+test('pushes files and folders dropped onto the push field', async ($, on) => {
+  const calls: string[][] = []
+  fakeAdb(on, calls, ['/Users/test/My Photos', '/Users/test/Desktop/a.jpg'])
+  mock.store(on)
+  mock.env(on, { HOME: '/Users/test' })
+
+  const ui = await $.ui.mount({
+    plugin: 'adb-explorer',
+    surface: 'terminal',
+    component: 'Pane',
+    requestId: 'adb-explorer',
+    props: PANE as never,
+  })
+  await ui.press({ key: 'retry' })
+  await ui.press({ key: 'push' })
+  // What a terminal pastes when a folder and a file are dragged in from Finder
+  await ui.input({ key: 'push-path', text: '/Users/test/My\\ Photos ~/Desktop/a.jpg ' })
+
+  const pushes = calls.filter(c => c[3] === 'push')
+  expect(pushes).toEqual([
+    ['adb', '-s', 'ABC123', 'push', '/Users/test/My Photos', '/sdcard/'],
+    ['adb', '-s', 'ABC123', 'push', '/Users/test/Desktop/a.jpg', '/sdcard/'],
+  ])
+  expect(await ui.find({ text: /Pushed 2 items to \/sdcard/ })).toBeDefined()
+  expect(await ui.find({ key: 'push-path' })).toBeUndefined()
+  await ui.unmount()
+})
+
+test('a typed path with spaces pushes as one, and a missing path pushes nothing', async ($, on) => {
+  const calls: string[][] = []
+  fakeAdb(on, calls, ['/Users/test/My Photos'])
+  mock.store(on)
+  mock.env(on, { HOME: '/Users/test' })
+
+  const ui = await $.ui.mount({
+    plugin: 'adb-explorer',
+    surface: 'terminal',
+    component: 'Pane',
+    requestId: 'adb-explorer',
+    props: PANE as never,
+  })
+  await ui.press({ key: 'retry' })
+  await ui.press({ key: 'push' })
+  await ui.input({ key: 'push-path', text: '~/My Photos' })
+  expect(calls.filter(c => c[3] === 'push').map(c => c[4])).toEqual(['/Users/test/My Photos'])
+
+  await ui.press({ key: 'push' })
+  await ui.input({ key: 'push-path', text: '/Users/test/nope.jpg /Users/test/My\\ Photos' })
+  expect(await ui.find({ text: /Not found on this computer: \/Users\/test\/nope\.jpg/ })).toBeDefined()
+  expect(calls.filter(c => c[3] === 'push')).toHaveLength(1)
   await ui.unmount()
 })

@@ -140,6 +140,59 @@ export function deleteCommand(paths: readonly string[]): string {
   return `rm -rf -- ${paths.map(shQuote).join(' ')}`
 }
 
+/**
+ * The Mac paths in what was typed or dropped into the push field. A terminal
+ * pastes a dropped file's path shell-escaped (`My\ Photos`), some quote it
+ * (`'My Photos'`) or send a `file://` URL, and several dropped files arrive
+ * on one line separated by spaces. `~/` is expanded against `home`.
+ */
+export function parseDroppedPaths(text: string, home: string): string[] {
+  const words: string[] = []
+  let word = ''
+  let started = false
+  let quote: "'" | '"' | null = null
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i] as string
+    if (quote === "'") {
+      if (ch === "'") quote = null
+      else word += ch
+    } else if (ch === '\\' && i + 1 < text.length) {
+      word += text[++i]
+      started = true
+    } else if (quote === '"') {
+      if (ch === '"') quote = null
+      else word += ch
+    } else if (ch === "'" || ch === '"') {
+      quote = ch
+      started = true
+    } else if (/\s/.test(ch)) {
+      if (started) words.push(word)
+      word = ''
+      started = false
+    } else {
+      word += ch
+      started = true
+    }
+  }
+  if (started) words.push(word)
+  return words.map(w => {
+    if (w.startsWith('file://')) {
+      try {
+        w = decodeURIComponent(w.slice('file://'.length).replace(/^localhost(?=\/)/, ''))
+      } catch {
+        // not a valid URL escape; keep it as typed
+      }
+    }
+    return w === '~' ? home : w.startsWith('~/') ? home + w.slice(1) : w
+  })
+}
+
+/** The last part of a path, for messages: `/a/b/` gives `b`. */
+export function baseName(p: string): string {
+  const trimmed = p.replace(/\/+$/, '')
+  return trimmed.slice(trimmed.lastIndexOf('/') + 1) || p
+}
+
 /** A timestamp safe for a folder name: 2026-10-15_14-55-02. */
 export function stampOf(ms: number): string {
   const d = new Date(ms)

@@ -14,12 +14,14 @@ import type { EngineInterface, Register } from 'claude-code'
 import type { AdbDevice, AdbEntry } from '../types'
 import {
   adbCandidates,
+  baseName,
   deleteCommand,
   humanSize,
   isDeletable,
   listCommand,
   parentPath,
   parseDevices,
+  parseDroppedPaths,
   parseList,
   parseSizes,
   sizesCommand,
@@ -167,8 +169,8 @@ async function pull($: $) {
     await $.process.run(['mkdir', '-p', dest])
     const failed: string[] = []
     for (const p of paths) {
-      const r = await adb($, ['-s', serial, 'pull', '-a', p, dest + '/'], 600_000)
-      if (r.exitCode !== 0) failed.push(p)
+      const r = await adbLong($, ['-s', serial, 'pull', '-a', p, dest + '/'])
+      if (!r.ok) failed.push(p)
     }
     await update($, lastPull, () => dest)
     await update($, marked, () => failed)
@@ -214,20 +216,62 @@ async function remove($: $) {
   })
 }
 
-async function push($: $, local: string) {
-  const path = local.trim()
-  if (!path) return
+/**
+ * Run adb without a time limit, for copies that can take as long as the data
+ * is big; `$.process.run` stops at ten minutes. Ends when adb does, or when
+ * the module unloads.
+ */
+async function adbLong($: $, args: string[]): Promise<{ ok: boolean; output: string }> {
+  const bin = await findAdb($)
+  if (!bin) throw new Error(ADB_MISSING)
+  const child = $.process.spawn({ argv: [bin, ...args] })
+  let output = ''
+  for await (const { text } of child) output += text
+  const { code } = await child.result
+  return { ok: code === 0, output: output.trim() }
+}
+
+/** The Mac paths in the push field: the whole text if it names one, else the dropped paths in it. */
+async function pushSources($: $, text: string): Promise<string[]> {
+  const home = (await $.env.get('HOME')) ?? ''
+  const whole = text.trim()
+  // A path typed by hand may hold unescaped spaces: `~/My Photos`
+  const typed = whole.startsWith('~/') ? home + whole.slice(1) : whole
+  if (typed && (await $.fs.exists(typed))) return [typed]
+  return parseDroppedPaths(text, home)
+}
+
+async function push($: $, text: string) {
+  const sources = await pushSources($, text)
+  if (sources.length === 0) return
   await task($, 'Pushing…', async () => {
-    const home = (await $.env.get('HOME')) ?? ''
-    const src = path.startsWith('~/') ? home + path.slice(1) : path
-    if (!(await $.fs.exists(src))) throw new Error(`Not found on this computer: ${src}`)
+    const missing: string[] = []
+    for (const src of sources) if (!(await $.fs.exists(src))) missing.push(src)
+    if (missing.length) throw new Error(`Not found on this computer: ${missing.join(', ')}`)
     const serial = await read($, device)
+    if (!serial) throw new Error('No device selected.')
     const dir = await read($, cwd)
-    const r = await adb($, ['-s', serial, 'push', src, dir + '/'], 600_000)
-    if (r.exitCode !== 0) throw new Error((r.stderr || r.stdout).trim() || 'Push failed.')
-    await update($, pushMode, () => false)
+    const failed: string[] = []
+    let lastError = ''
+    for (const [i, src] of sources.entries()) {
+      const name = baseName(src)
+      await update($, busy, () => sources.length > 1 ? `Pushing ${i + 1}/${sources.length}: ${name}…` : `Pushing ${name}…`)
+      const r = await adbLong($, ['-s', serial, 'push', src, dir + '/'])
+      if (!r.ok) {
+        failed.push(name)
+        lastError = r.output
+      }
+    }
     await listDir($, dir)
-    await update($, message, () => `Pushed ${src} to ${dir}.`)
+    if (failed.length === sources.length) throw new Error(lastError || 'Push failed.')
+    await update($, pushMode, () => false)
+    await update($, message, () =>
+      failed.length
+        ? `Pushed ${sources.length - failed.length} to ${dir}; failed: ${failed.join(', ')} (${lastError || 'adb error'}).`
+        : sources.length === 1
+          ? `Pushed ${baseName(sources[0] as string)} to ${dir}.`
+          : `Pushed ${sources.length} items to ${dir}.`,
+    )
   })
 }
 
@@ -413,7 +457,7 @@ export const register: Register = on => {
           <Input
             key="push-path"
             label="Push from Mac"
-            placeholder="~/Desktop/file.jpg  (Enter to push, Esc to cancel)"
+            placeholder="Drop files or folders here, or type a path  (Enter to push, Esc to cancel)"
             value=""
             submitLabel="push"
             autoFocus
