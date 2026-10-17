@@ -5,11 +5,13 @@ import {
   baseName,
   deleteCommand,
   humanSize,
+  infoLine,
   isDeletable,
   joinPath,
   parentPath,
   parseDevices,
   parseDroppedPaths,
+  parseInfo,
   parseList,
   parseSizes,
   shQuote,
@@ -28,6 +30,38 @@ describe('adb helpers', () => {
       { serial: 'R5CT1234ABC', state: 'device', model: 'SM A546E' },
       { serial: 'emulator-5554', state: 'unauthorized', model: 'emulator-5554' },
     ])
+  })
+
+  test('parses device info for the header', async () => {
+    // A Galaxy on charge, with \r\n line ends like older adb shells
+    const phone = [
+      'name=Galaxy A54 5G',
+      'release=14',
+      'sdk=34',
+      'df=/dev/fuse 115343360 80740352 34603008 70% /storage/emulated',
+      '  status: 2',
+      '  level: 64',
+      '',
+    ].join('\r\n')
+    const info = parseInfo(phone)
+    expect(info).toEqual({
+      name: 'Galaxy A54 5G',
+      release: '14',
+      sdk: '34',
+      totalBytes: 115343360 * 1024,
+      freeBytes: 34603008 * 1024,
+      battery: 64,
+      charging: true,
+    })
+    expect(infoLine(info)).toBe('Android 14 (API 34) · 33.0 GB free of 110 GB · Battery 64%, charging')
+
+    // The emulator: no marketing name, not charging
+    const emu = parseInfo('name=\nrelease=16\nsdk=36\ndf=/dev/fuse 10474476 6710460 3145728 68% /storage/emulated\n  status: 4\n  level: 100\n')
+    expect(emu.name).toBe('')
+    expect(infoLine(emu)).toBe('Android 16 (API 36) · 3.0 GB free of 10.0 GB · Battery 100%')
+
+    // Nothing answered: nothing to show
+    expect(infoLine(parseInfo(''))).toBe('')
   })
 
   test('parses a folder listing, folders first, odd names intact', async () => {

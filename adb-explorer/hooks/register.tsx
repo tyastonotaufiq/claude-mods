@@ -11,17 +11,20 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { AdbDevice, AdbEntry } from '../types'
+import type { AdbDevice, AdbEntry, AdbInfo } from '../types'
 import {
   adbCandidates,
   baseName,
   deleteCommand,
   humanSize,
+  INFO_COMMAND,
+  infoLine,
   isDeletable,
   listCommand,
   parentPath,
   parseDevices,
   parseDroppedPaths,
+  parseInfo,
   parseList,
   parseSizes,
   sizesCommand,
@@ -45,6 +48,7 @@ const message = atom({ plugin: 'adb-explorer', key: 'message' } as const, '')
 const showHidden = atom({ plugin: 'adb-explorer', key: 'showHidden' } as const, false)
 const pushMode = atom({ plugin: 'adb-explorer', key: 'pushMode' } as const, false)
 const lastPull = atom({ plugin: 'adb-explorer', key: 'lastPull' } as const, '')
+const info = atom({ plugin: 'adb-explorer', key: 'info' } as const, null as (AdbInfo & { serial: string }) | null)
 
 type $ = EngineInterface
 
@@ -120,6 +124,18 @@ async function refreshDevices($: $) {
   }
 }
 
+/** Fetch the header info for the selected device. It's extra, so a failure just leaves it blank. */
+async function refreshInfo($: $) {
+  const serial = await read($, device)
+  if (!serial) return
+  try {
+    const r = await onDevice($, INFO_COMMAND, 10_000)
+    await update($, info, () => ({ ...parseInfo(r.stdout), serial }))
+  } catch {
+    // keep what was there
+  }
+}
+
 async function listDir($: $, dir: string) {
   if (!(await read($, device))) {
     await update($, entries, () => [])
@@ -143,6 +159,7 @@ async function reload($: $) {
   await task($, 'Loading…', async () => {
     await refreshDevices($)
     await listDir($, await read($, cwd))
+    await refreshInfo($)
   })
 }
 
@@ -208,6 +225,7 @@ async function remove($: $) {
     if (r.exitCode !== 0) throw new Error((r.stderr || r.stdout).trim() || 'The device refused the delete.')
     await update($, marked, () => refused)
     await listDir($, await read($, cwd))
+    await refreshInfo($)
     await update($, message, () =>
       permanent
         ? `Deleted ${allowed.length} item(s).`
@@ -263,6 +281,7 @@ async function push($: $, text: string) {
       }
     }
     await listDir($, dir)
+    await refreshInfo($)
     if (failed.length === sources.length) throw new Error(lastError || 'Push failed.')
     await update($, pushMode, () => false)
     await update($, message, () =>
@@ -323,7 +342,10 @@ export const register: Register = on => {
 
   // After Claude works on the phone (via the skill), show the result.
   on('turn.complete', async ($, e, next) => {
-    if (paneOpen) void go($, await read($, cwd))
+    if (paneOpen) {
+      void go($, await read($, cwd))
+      void refreshInfo($)
+    }
     return next(e)
   })
 
@@ -369,9 +391,12 @@ export const register: Register = on => {
     const hidden = await read($, showHidden)
     const pushing = await read($, pushMode)
     const pulledTo = await read($, lastPull)
+    const stored = await read($, info)
 
     const ready = list.filter(d => d.state === 'device')
     const current = list.find(d => d.serial === serial)
+    const about = stored?.serial === serial ? stored : null
+    const aboutLine = about ? infoLine(about) : ''
 
     const status = working ? (
       <Text color="yellow">{working}</Text>
@@ -405,9 +430,10 @@ export const register: Register = on => {
     return (
       <Box flexDirection="column">
         <Box flexDirection="row" columnGap={2}>
-          <Text bold>{current?.model ?? serial}</Text>
+          <Text bold>{about?.name || current?.model || serial}</Text>
           <Text dimColor wrap="truncate-start">{dir}</Text>
         </Box>
+        {aboutLine ? <Text dimColor wrap="wrap">{aboutLine}</Text> : null}
 
         {ready.length > 1 ? (
           <Select
@@ -421,6 +447,7 @@ export const register: Register = on => {
                 await update($, marked, () => [])
                 const saved = await $.store.get('cwd:' + value)
                 await go($, typeof saved === 'string' ? saved : HOME_DIR)
+                await refreshInfo($)
               })()
             }
           />

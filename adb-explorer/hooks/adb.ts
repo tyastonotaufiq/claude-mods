@@ -1,7 +1,7 @@
 // Pure helpers for the adb-explorer mod: quoting, parsing and path rules.
 // Nothing here runs a process, so every function is unit-testable.
 
-import type { AdbDevice, AdbEntry } from '../types'
+import type { AdbDevice, AdbEntry, AdbInfo } from '../types'
 
 /**
  * Where to look for adb, in order; `'adb'` means the one on PATH. The Android
@@ -38,6 +38,49 @@ export function parseDevices(out: string): AdbDevice[] {
     devices.push({ serial, state, model })
   }
   return devices
+}
+
+/**
+ * One shell command for the pane header: the marketing name, Android version,
+ * free space in user storage and the battery. Each value is on its own
+ * labelled line, so a value the device doesn't have is just blank.
+ */
+export const INFO_COMMAND = [
+  'echo "name=$(getprop ro.product.marketname)"',
+  'echo "release=$(getprop ro.build.version.release)"',
+  'echo "sdk=$(getprop ro.build.version.sdk)"',
+  'echo "df=$(df -k /sdcard 2>/dev/null | tail -n 1)"',
+  "dumpsys battery 2>/dev/null | grep -E '^ *(level|status):'",
+].join('; ')
+
+/** Parse the output of `INFO_COMMAND`. */
+export function parseInfo(out: string): AdbInfo {
+  const text = out.replace(/\r/g, '')
+  const field = (re: RegExp) => re.exec(text)?.[1]?.trim() ?? ''
+  // df -k: filesystem, 1K-blocks, used, available, ...
+  const df = /^df=\S+\s+(\d+)\s+\d+\s+(\d+)/m.exec(text)
+  const level = field(/^\s*level:\s*(\d+)/m)
+  return {
+    name: field(/^name=(.*)$/m),
+    release: field(/^release=(.*)$/m),
+    sdk: field(/^sdk=(.*)$/m),
+    totalBytes: df ? Number(df[1]) * 1024 : null,
+    freeBytes: df ? Number(df[2]) * 1024 : null,
+    battery: level ? Number(level) : null,
+    // BatteryManager.BATTERY_STATUS_CHARGING
+    charging: field(/^\s*status:\s*(\d+)/m) === '2',
+  }
+}
+
+/** The header line under the device name: `Android 16 (API 36) · 3.0 GB free of 10.0 GB · Battery 80%`. */
+export function infoLine(info: AdbInfo): string {
+  const parts: string[] = []
+  if (info.release) parts.push(`Android ${info.release}` + (info.sdk ? ` (API ${info.sdk})` : ''))
+  if (info.freeBytes !== null && info.totalBytes) {
+    parts.push(`${humanSize(info.freeBytes)} free of ${humanSize(info.totalBytes)}`)
+  }
+  if (info.battery !== null) parts.push(`Battery ${info.battery}%` + (info.charging ? ', charging' : ''))
+  return parts.join(' · ')
 }
 
 /** Join a directory and a name on the device. */

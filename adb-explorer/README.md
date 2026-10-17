@@ -55,6 +55,8 @@ The Desktop app may not have your shell's `PATH`, so the pane looks for `adb` di
 
 Run `/adb-explorer`, or `/adb-explorer /sdcard/DCIM` to start in a folder.
 
+The header shows the device's name, then its Android version, free space in user storage, and battery, for example `Android 16 (API 36) · 3.1 GB free of 9.7 GB · Battery 100%`. It updates on refresh and after a push or delete.
+
 | Key | Action |
 | --- | --- |
 | Up / Down, Enter | Move between rows, open a folder |

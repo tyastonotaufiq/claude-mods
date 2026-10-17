@@ -1,5 +1,16 @@
 export type AdbDevice = { serial: string; state: string; model: string }
 
+/** What the pane header shows about a device; empty or null when the device doesn't say. */
+export type AdbInfo = {
+  name: string
+  release: string
+  sdk: string
+  freeBytes: number | null
+  totalBytes: number | null
+  battery: number | null
+  charging: boolean
+}
+
 export type AdbEntry = {
   name: string
   path: string
@@ -22,6 +33,7 @@ declare module 'claude-code' {
       showHidden: boolean
       pushMode: boolean
       lastPull: string
+      info: (AdbInfo & { serial: string }) | null
     }
   }
 }

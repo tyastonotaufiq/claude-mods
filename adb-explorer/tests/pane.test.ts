@@ -35,6 +35,9 @@ function fakeAdb(on: any, calls: string[][], files: string[] = []) {
       const cmd = argv[4] ?? ''
       const dir = /^cd '([^']*)'/.exec(cmd)?.[1] ?? ''
       if (cmd.includes('stat -L')) return ok(LISTINGS[dir] ?? '')
+      if (cmd.includes('getprop')) {
+        return ok('name=\nrelease=15\nsdk=35\ndf=/dev/fuse 10474476 6710460 3145728 68% /storage/emulated\n  status: 2\n  level: 80\n')
+      }
       return ok('')
     }
     return ok('')
@@ -74,8 +77,9 @@ for (const surface of ['terminal', 'desktop'] as const) {
     expect(await ui.find({ text: /No Android device ready/ })).toBeDefined()
     await ui.press({ key: 'retry' })
 
-    // The device and /sdcard listing show
+    // The device, its info line and the /sdcard listing show
     expect(await ui.find({ text: /Pixel 7/ })).toBeDefined()
+    expect(await ui.find({ text: /Android 15 \(API 35\) · 3\.0 GB free of 10\.0 GB · Battery 80%, charging/ })).toBeDefined()
     expect(await ui.find({ key: 'open-0' })).toBeDefined()
     expect((await ui.find({ key: 'open-2' }))?.text).toMatch(/video\.mp4/)
 
