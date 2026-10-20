@@ -44,6 +44,10 @@ What isn't checked:
 - code blocks inside a prompt (only your own words around them are checked)
 - prompts with more than 2,000 characters of prose, which are usually pastes
 
+## Checking other writing
+
+The mod only checks prompts you send in Claude Code. For anything else, like an email, a Slack message or a PR description, use the [English Improver page](https://claude.ai/artifact/FhbjSt7KzqDwuqgu6eQsvD) on claude.ai: paste your text, press **Improve**, and copy the native version. It gives the same kind of notes. It needs you to be signed in to claude.ai, and each check counts toward your own Claude usage.
+
 ## Requirements
 
 - Claude Code v2.1.287 or later, in the terminal or the Code tab of the Claude Desktop app
