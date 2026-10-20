@@ -20,7 +20,7 @@ export type Mode = 'show' | 'rewrite' | 'ask'
 declare module 'claude-code' {
   interface PluginState {
     'english-improver': {
-      /** The suggestion for the last prompt, or null when it read naturally or was dismissed. */
+      /** The suggestion for the last prompt, or null when it read naturally. */
       suggestion: Suggestion | null
       /** Whether prompts are checked; off with /english-improver off. */
       enabled: boolean

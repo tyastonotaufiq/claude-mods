@@ -166,15 +166,12 @@ export const register: Register = on => {
           </Box>
         ))}
         {s.sent ? <Text dimColor wrap="wrap">{'  Sent to Claude instead of what you typed.'}</Text> : null}
-        <Box flexDirection="row" columnGap={2}>
-          <Button
-            key="mode"
-            label={'Mode: ' + (MODES.find(x => x.mode === m)?.short ?? m)}
-            plain
-            onPress={() => void chooseMode($)}
-          />
-          <Button key="dismiss" label="Dismiss" plain onPress={() => void update($, suggestion, () => null)} />
-        </Box>
+        <Button
+          key="mode"
+          label={'Mode: ' + (MODES.find(x => x.mode === m)?.short ?? m)}
+          plain
+          onPress={() => void chooseMode($)}
+        />
       </Box>
     )
   })

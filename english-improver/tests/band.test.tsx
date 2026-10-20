@@ -70,9 +70,6 @@ for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await mount($, surface)
     expect(await ui.find({ text: /✎ Can I mark everything here\?/ })).toBeDefined()
     expect(await ui.find({ text: /mark all → mark everything · "all" alone sounds abrupt here/ })).toBeDefined()
-
-    await ui.press({ key: 'dismiss' })
-    expect(await ui.find({ text: /Can I mark everything/ })).toBeUndefined()
     await ui.unmount()
   })
 

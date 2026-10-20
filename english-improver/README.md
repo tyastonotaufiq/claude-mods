@@ -11,13 +11,13 @@ A Claude Code plugin for people who write to Claude in English as a second langu
     it's show → it shows · Subject-verb agreement; "it's" isn't needed here
     inside app → inside the app · Singular countable noun needs an article
     lefover → leftovers · Correct spelling of the word
-    Mode: Show   Dismiss
+    Mode: Show
 ```
 
 ## How it works
 
 - Your prompt goes to Claude exactly as you typed it, at once. Claude understands it fine either way; the suggestion is for you.
-- At the same time, the mod asks Claude Haiku for a more natural version. When it's ready (usually a second or two), it appears above the prompt box while Claude works on your request. It stays until your next prompt, or until you press **Dismiss**. The next prompt gets checked as usual.
+- At the same time, the mod asks Claude Haiku for a more natural version. When it's ready (usually a second or two), it appears above the prompt box while Claude works on your request. It stays until your next prompt. To hide it sooner, press the band's `[-]` (or ctrl+x ctrl+a).
 - **Mode** changes what happens to your prompts (see below).
 - Nothing shows when your prompt already reads naturally, or when the only change would be capital letters.
 - It keeps your tone: a casual prompt stays casual, a short one stays short. Code, file paths, commands and technical terms are left exactly as written.
