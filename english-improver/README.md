@@ -2,6 +2,8 @@
 
 A Claude Code plugin for people who write to Claude in English as a second language. After each prompt you send, it shows how a native speaker would write the same thing, with a short note on each change, in a band above the prompt box. You learn while you work. By default your prompt is never changed or delayed; you can also have Claude get the improved version instead, or pick each time.
 
+![The English Improver band above the Claude Code prompt box, suggesting "What do you know about this project?" for a prompt with a typo](./docs/screenshot.png)
+
 ```
 > when i click rescan inside app, it's show lefover
 
@@ -82,6 +84,7 @@ Your prompt's text is sent to Claude Haiku through the same Claude Code login an
 ```
 english-improver/
 ├── .claude-plugin/plugin.json
+├── docs/screenshot.png
 ├── hooks/
 │   ├── hooks.json
 │   ├── register.tsx     the band above the prompt, /english-improver, the check after each prompt
