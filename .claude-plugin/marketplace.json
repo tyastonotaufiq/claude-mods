@@ -4,7 +4,7 @@
     "name": "tyastonotaufiq"
   },
   "metadata": {
-    "description": "Claude Code mods with their own panes: ADB Explorer for Android files and Mac Cleaner for disk space"
+    "description": "Claude Code mods with their own panes: ADB Explorer for Android files, Mac Cleaner for disk space and Mac Uninstaller for removing apps completely"
   },
   "plugins": [
     {
@@ -16,6 +16,11 @@
       "name": "mac-cleaner",
       "source": "./mac-cleaner",
       "description": "See what's using space on your Mac and move the junk to the Trash, from a /mac-cleaner pane"
+    },
+    {
+      "name": "mac-uninstaller",
+      "source": "./mac-uninstaller",
+      "description": "Uninstall Mac apps with the files they leave behind, from a /mac-uninstaller pane"
     }
   ]
 }
