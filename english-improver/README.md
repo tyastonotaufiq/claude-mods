@@ -2,7 +2,7 @@
 
 A Claude Code plugin for people who write to Claude in English as a second language. After each prompt you send, it shows how a native speaker would write the same thing, with a short note on each change, in a band above the prompt box. You learn while you work. By default your prompt is never changed or delayed; you can also have Claude get the improved version instead, or pick each time.
 
-![The English Improver band above the Claude Code prompt box, suggesting "What do you know about this project?" for a prompt with a typo](./docs/screenshot.png)
+![The English Improver band above the Claude Code prompt box, suggesting "what do you know about this project?" for a prompt with a typo](./docs/screenshot.png)
 
 ```
 > when i click rescan inside app, it's show lefover
