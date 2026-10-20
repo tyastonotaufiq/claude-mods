@@ -5,12 +5,12 @@ A Claude Code plugin for people who write to Claude in English as a second langu
 ![The English Improver band above the Claude Code prompt box, suggesting "what do you know about this project?" for a prompt with a typo](./docs/screenshot.png)
 
 ```
-> when i click rescan inside app, it's show lefover
+> please explain me how this function work and why it return null
 
-  ✎ When I click rescan inside the app, it shows leftovers.
-    it's show → it shows · Subject-verb agreement; "it's" isn't needed here
-    inside app → inside the app · Singular countable noun needs an article
-    lefover → leftovers · Correct spelling of the word
+  ✎ Please explain how this function works and why it returns null.
+    explain me → explain · "Explain" doesn't take a person directly; say "explain to me"
+    this function work → this function works · Third-person singular needs -s
+    it return → it returns · Same rule: "it" takes -s
     Mode: Show
 ```
 
