@@ -62,7 +62,7 @@ The pane only moves what's in the home folder, `/Applications` and `~/Applicatio
 
 Run any of these only after the user says yes, and say that they need the user's password.
 
-If the app ships its own uninstaller (many VPNs, Adobe, Microsoft AutoUpdate, Docker), recommend running that first. It also removes system extensions and network settings that moving files can't undo.
+If the app ships its own uninstaller, recommend running that first. It also removes system extensions and network settings that moving files can't undo.
 
 ## Rules
 

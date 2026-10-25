@@ -14,12 +14,15 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { AppInfo, Leftover, Orphan, View } from '../types'
+import type { AppInfo, Leftover, Orphan, SystemExtension, View } from '../types'
 import {
   APP_FOLDERS,
+  explainTrashError,
+  extensionStatus,
   finderTrashScript,
   findOrphans,
   humanSize,
+  isContainer,
   isRemovableApp,
   isRemovableLeftover,
   isSystemApp,
@@ -31,7 +34,10 @@ import {
   parseDu,
   parseFindings,
   parseInfoPlist,
+  parseSystemExtensions,
   PLACES,
+  runningExtensionOf,
+  strayExtensions,
   tildify,
 } from './uninstaller'
 import type { Place } from './uninstaller'
@@ -45,6 +51,8 @@ const query = atom({ plugin: 'mac-uninstaller', key: 'query' } as const, '')
 const app = atom({ plugin: 'mac-uninstaller', key: 'app' } as const, null as AppInfo | null)
 const leftovers = atom({ plugin: 'mac-uninstaller', key: 'leftovers' } as const, [] as Leftover[])
 const orphans = atom({ plugin: 'mac-uninstaller', key: 'orphans' } as const, [] as Orphan[])
+// System extensions whose app is gone, shown under the orphans
+const extensions = atom({ plugin: 'mac-uninstaller', key: 'extensions' } as const, [] as SystemExtension[])
 // Paths in the app view, bundle IDs in the orphans view
 const marked = atom({ plugin: 'mac-uninstaller', key: 'marked' } as const, [] as string[])
 const busy = atom({ plugin: 'mac-uninstaller', key: 'busy' } as const, '')
@@ -92,7 +100,7 @@ async function listNames($: $, dir: string): Promise<{ name: string; isLink: boo
   }
 }
 
-/** The .app bundles in the app folders, and one folder down (Adobe and others install in a folder). */
+/** The .app bundles in the app folders, and one folder down (some apps install in a folder of their own). */
 async function appPaths($: $, home: string): Promise<string[]> {
   const found: string[] = []
   for (const f of APP_FOLDERS) {
@@ -245,6 +253,16 @@ async function refreshFindings($: $) {
   if (fresh.length) await update($, message, () => `Claude found ${fresh.length} more item(s). Check them, then press u.`)
 }
 
+/** Every system extension macOS knows, or none when systemextensionsctl can't tell. */
+async function systemExtensions($: $): Promise<SystemExtension[]> {
+  try {
+    const r = await $.process.run(['systemextensionsctl', 'list'], { timeoutMs: 15_000 })
+    return parseSystemExtensions(r.stdout)
+  } catch {
+    return []
+  }
+}
+
 /**
  * Leftovers of apps that aren't installed any more, one row per bundle ID.
  * With `fresh`, the app list is read again first, for apps added or removed meanwhile.
@@ -254,11 +272,14 @@ async function openOrphans($: $, fresh = false) {
   await update($, view, () => 'orphans')
   await update($, marked, () => [])
   await update($, orphans, () => [])
+  await update($, extensions, () => [])
   await task($, 'Looking for leftovers of removed apps…', async () => {
     const home = await homeOf($)
     const installed = !fresh && (await read($, apps)).length ? await read($, apps) : await loadApps($)
     const children = (await placeChildren($, home)).filter(c => isRemovableLeftover(c.path, home))
     const candidates = findOrphans(children, installed.map(a => a.id))
+    const exts = await systemExtensions($)
+    await update($, extensions, () => strayExtensions(exts, installed.map(a => a.id)))
 
     // Spotlight knows apps outside the app folders (in Downloads, on other disks)
     const gone: Orphan[] = []
@@ -269,7 +290,9 @@ async function openOrphans($: $, fresh = false) {
       } catch {
         // Spotlight off: keep it, the person reviews every row anyway
       }
-      gone.push(o)
+      // macOS keeps an app's containers while its system extension runs (an app left in the Trash)
+      const ext = o.paths.some(isContainer) ? runningExtensionOf(o.id, exts) : undefined
+      gone.push(ext ? { ...o, extension: ext.name } : o)
     })
 
     let done = 0
@@ -314,7 +337,7 @@ async function trash($: $, paths: readonly string[]): Promise<{ left: string[]; 
     why = (r.stderr || r.stdout).trim() || why
     left = await stillThere($, left)
   }
-  return { left, why }
+  return { left, why: explainTrashError(why) }
 }
 
 async function stillThere($: $, paths: readonly string[]): Promise<string[]> {
@@ -397,9 +420,16 @@ async function trashOrphans($: $) {
   const home = await homeOf($)
   const picks = await read($, marked)
   const chosen = (await read($, orphans)).filter(o => picks.includes(o.id))
-  const paths = chosen.flatMap(o => o.paths).filter(p => isRemovableLeftover(p, home))
+  // Containers of an app whose extension still runs would only fail: leave them
+  const held = chosen.filter(o => o.extension)
+  const blocked = held.flatMap(o => o.paths.filter(isContainer))
+  const heldNote = held.length
+    ? `${held.map(o => `"${o.extension}"`).join(', ')} still running, so macOS protects ${blocked.length} container(s). ` +
+      'Remove the extension in System Settings → General → Login Items & Extensions, restart, then try again.'
+    : ''
+  const paths = chosen.flatMap(o => o.paths).filter(p => isRemovableLeftover(p, home) && !blocked.includes(p))
   if (paths.length === 0) {
-    await update($, message, () => 'Mark items first ([ ] beside each row).')
+    await update($, message, () => heldNote || 'Mark items first ([ ] beside each row).')
     return
   }
   const bytes = chosen.reduce((n, o) => n + o.size, 0)
@@ -416,9 +446,10 @@ async function trashOrphans($: $) {
     await update($, marked, () => remaining.filter(o => picks.includes(o.id)).map(o => o.id))
     await logMoved($, 'orphans', moved, bytes)
     await update($, message, () =>
-      left.length
+      (left.length
         ? `Moved ${moved.length}, ${left.length} could not be moved (still marked)${why ? ': ' + why.slice(0, 200) : '.'}`
-        : `Moved ${moved.length} item(s) to the Trash. Empty the Trash to get the space back.`,
+        : `Moved ${moved.length} item(s) to the Trash. Empty the Trash to get the space back.`) +
+      (heldNote ? ' Skipped: ' + heldNote : ''),
     )
   })
 }
@@ -516,6 +547,7 @@ export const register: Register = on => {
           marked: await read($, marked),
           leftovers: v === 'app' ? await read($, leftovers) : undefined,
           orphans: v === 'orphans' ? await read($, orphans) : undefined,
+          extensions: v === 'orphans' ? await read($, extensions) : undefined,
         },
         null,
         2,
@@ -613,6 +645,7 @@ export const register: Register = on => {
 
     if (v === 'orphans') {
       const list = await read($, orphans)
+      const strays = await read($, extensions)
       const pickedBytes = list.filter(o => picks.includes(o.id)).reduce((n, o) => n + o.size, 0)
       return (
         <Box flexDirection="column">
@@ -640,8 +673,33 @@ export const register: Register = on => {
           {status}
           {list.length === 0 && !working ? <Text dimColor>Nothing to show.</Text> : null}
           {list.map((o, i) =>
-            markRow(o.id, i, o.id, o.size, `${o.places.join(', ')} · ${o.paths.length} item(s) · app not found on this Mac`),
+            markRow(
+              o.id,
+              i,
+              o.id,
+              o.size,
+              `${o.places.join(', ')} · ${o.paths.length} item(s) · ` +
+                (o.extension ? `its extension "${o.extension}" is still running` : 'no app with this ID (may be a command-line tool)'),
+              o.extension ? 'yellow' : undefined,
+            ),
           )}
+          {strays.length ? (
+            <Box key="extensions" flexDirection="column">
+              <Text> </Text>
+              <Text bold>System extensions of removed apps</Text>
+              {strays.some(x => !x.state.includes('uninstall')) ? (
+                <Text dimColor wrap="wrap">
+                  Remove them in System Settings → General → Login Items & Extensions, or with the app's own uninstaller.
+                </Text>
+              ) : null}
+              {strays.map((x, i) => (
+                <Box key={'ext-' + i} flexDirection="column">
+                  <Text wrap="truncate-end">{x.name}</Text>
+                  <Text dimColor wrap="truncate-end">{`    ${x.id} · ${extensionStatus(x)}`}</Text>
+                </Box>
+              ))}
+            </Box>
+          ) : null}
         </Box>
       )
     }

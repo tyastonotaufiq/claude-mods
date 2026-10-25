@@ -27,6 +27,18 @@ export type Orphan = {
   paths: string[]
   places: string[]
   size: number
+  /** The name of a system extension of this app that's still running: its containers can't be moved. */
+  extension?: string
+}
+
+/** A row of `systemextensionsctl list`. */
+export type SystemExtension = {
+  id: string
+  teamId: string
+  name: string
+  /** activated enabled, terminated waiting to uninstall on reboot… */
+  state: string
+  active: boolean
 }
 
 export type View = 'apps' | 'app' | 'orphans'
@@ -40,6 +52,7 @@ declare module 'claude-code' {
       app: AppInfo | null
       leftovers: Leftover[]
       orphans: Orphan[]
+      extensions: SystemExtension[]
       marked: string[]
       busy: string
       message: string

@@ -83,13 +83,15 @@ Unmark the app itself to keep it and only remove its leftovers, for example to r
 
 Nothing here is marked for you: check each row, mark it (or `a` to mark all), and press `t`. `r` scans again, reading the app list afresh. Some rows belong to command-line tools rather than apps (Java, Firebase), and are usually tiny.
 
+**System extensions.** Some apps install system extensions, which keep running after the app is gone (or while it sits in the Trash). Below the leftovers, the pane lists each extension whose app is gone, and whether it's still running or removed at the next restart. It can't remove them: use System Settings → General → Login Items & Extensions, or the app's own uninstaller. While an app's extension runs, macOS protects its containers, so their row is yellow and `t` leaves the containers out.
+
 ## Safety
 
 - **Nothing is deleted.** Everything goes to the Trash, where Put Back works. You get the space back when you empty the Trash.
 - Every move asks first, naming the app, the item count and the size.
 - An app that's running isn't moved: quit it first.
 - Each path is checked again right before it moves:
-  - an app must be a `.app` in `/Applications` or `~/Applications` (or one folder down, like Adobe's)
+  - an app must be a `.app` in `/Applications` or `~/Applications` (or one folder down, for apps installed in a folder of their own)
   - a leftover must sit directly inside one of the `~/Library` places apps write to, never the place itself
 - Another app's container is never listed, even if Claude proposes it. Keychains, Mail, iCloud Drive, `~/.ssh`, `~/.aws`, shell startup files and `~/.claude` are always refused.
 - System-wide files under `/Library` need admin rights and are never moved by the pane. Claude can list them and give you the commands to remove them.
@@ -114,7 +116,7 @@ mac-uninstaller/
 
 ## Known limits
 
-- It looks in your home folder and the app folders only. Files an installer put in `/Library` (daemons, privileged helpers, system extensions) need an admin and aren't moved: ask Claude, or use the app's own uninstaller if it has one (VPNs, Adobe, Docker).
+- It looks in your home folder and the app folders only. Files an installer put in `/Library` (daemons, privileged helpers, system extensions) need an admin and aren't moved: ask Claude, or use the app's own uninstaller if it has one. System extensions of removed apps are listed, not removed.
 - On macOS 14 and later, measuring an app's container can make macOS ask whether your terminal may access another app's data. Allow it to see the size; if you deny it, the size shows as —.
 - Some folders need Full Disk Access for an accurate size. Grant it to your terminal app in System Settings › Privacy & Security.
 - Leftovers that don't use the app's bundle ID or name aren't found by the pane. Ask Claude to look deeper.

@@ -4,27 +4,36 @@ const H = '/Users/t'
 const MB = 1024 * 1024
 const SLACK = 'com.tinyspeck.slackmacgap'
 
-// A fake Mac: Slack, Safari and Photoshop installed; Slack's leftovers in
+// A fake Mac: Slack, Safari and Example Studio installed; Slack's leftovers in
 // ~/Library, plus what an uninstalled Spotify left behind. com.other.app's
 // container belongs to an app Spotlight finds in Downloads.
 function fakeMac(
   on: any,
   calls: string[][],
-  opts: { running?: boolean; findings?: string; trashFails?: boolean } = {},
+  opts: { running?: boolean; findings?: string; trashFails?: boolean; extension?: boolean } = {},
 ) {
   const dirs: Record<string, string[]> = {
-    '/Applications': ['Slack.app', 'Safari.app', 'Adobe Photoshop 2025', 'Utilities', 'Tasbih.app'],
-    '/Applications/Adobe Photoshop 2025': ['Adobe Photoshop 2025.app'],
+    '/Applications': ['Slack.app', 'Safari.app', 'Example Studio 2025', 'Utilities', 'Tasbih.app'],
+    '/Applications/Example Studio 2025': ['Example Studio 2025.app'],
     [H + '/Library/Application Support']: ['Slack', 'Spotify'],
     [H + '/Library/Caches']: [SLACK, 'com.spotify.client'],
     [H + '/Library/Preferences']: [SLACK + '.plist', 'com.spotify.client.plist', 'com.apple.finder.plist', 'ByHost'],
     [H + '/Library/Containers']: [SLACK, 'com.other.app'],
     [H + '/Library/Group Containers']: ['ABCDE12345.' + SLACK],
   }
+  // An app, removed, but its system extension still runs
+  if (opts.extension) {
+    dirs[H + '/Library/Caches']!.push('com.example.app')
+    dirs[H + '/Library/Containers']!.push('com.example.app')
+  }
+  const extensions = [
+    'enabled\tactive\tteamID\tbundleID (version)\tname\t[state]',
+    '*\t*\tEXAMPLE123\tcom.example.app.extension (6.5.2/1)\tExample Extension\t[activated enabled]',
+  ].join('\n')
   const plists: Record<string, object> = {
     '/Applications/Slack.app': { CFBundleIdentifier: SLACK, CFBundleName: 'Slack', CFBundleShortVersionString: '4.41' },
     '/Applications/Safari.app': { CFBundleIdentifier: 'com.apple.Safari', CFBundleName: 'Safari' },
-    '/Applications/Adobe Photoshop 2025/Adobe Photoshop 2025.app': { CFBundleIdentifier: 'com.adobe.Photoshop' },
+    '/Applications/Example Studio 2025/Example Studio 2025.app': { CFBundleIdentifier: 'org.example.studio' },
     // An iPhone app: its Info.plist is inside WrappedBundle
     '/Applications/Tasbih.app/WrappedBundle': { CFBundleIdentifier: 'dev.t.tasbih', CFBundleShortVersionString: '2.0' },
   }
@@ -63,6 +72,7 @@ function fakeMac(
     }
     if (argv[0] === 'du') return ok(`${kb[argv[2] ?? ''] ?? 4}\t${argv[2]}`)
     if (argv[0] === 'pgrep') return opts.running ? ok('123\n') : ok('', 1)
+    if (argv[0] === 'systemextensionsctl') return ok(opts.extension ? extensions : '')
     // Spotlight knows com.other.app is still installed, outside /Applications
     if (argv[0] === 'mdfind') return ok(argv[1]?.includes('com.other.app') ? H + '/Downloads/Other.app\n' : '')
     if (argv[0] === '/usr/bin/trash' || argv[0] === 'osascript') {
@@ -107,7 +117,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await mount($, surface)
     await ui.press({ key: 'reload' })
 
-    expect((await ui.find({ key: 'app-0' }))?.text).toMatch(/Adobe Photoshop 2025/)
+    expect((await ui.find({ key: 'app-0' }))?.text).toMatch(/Example Studio 2025/)
     expect((await ui.find({ key: 'app-1' }))?.text).toMatch(/Slack/)
     expect((await ui.find({ key: 'app-2' }))?.text).toMatch(/Tasbih/)
     expect(await ui.find({ key: 'app-3' })).toBeUndefined()
@@ -209,7 +219,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
 
     expect((await ui.find({ key: 'name-0' }))?.text).toBe('com.spotify.client')
     expect(await ui.find({ key: 'name-1' })).toBeUndefined()
-    expect(await ui.find({ text: /Cache, Settings · 2 item\(s\)/ })).toBeDefined()
+    expect(await ui.find({ text: /Cache, Settings · 2 item\(s\) · no app with this ID \(may be a command-line tool\)/ })).toBeDefined()
 
     await ui.press({ key: 'mark-all' })
     expect((await ui.find({ key: 'trash' }))?.text).toMatch(/\(1, 900 MB\)/)
@@ -229,6 +239,29 @@ for (const surface of ['terminal', 'desktop'] as const) {
     await ui.press({ key: 'rescan' })
     expect(await ui.find({ key: 'name-0' })).toBeUndefined()
     expect(await ui.find({ text: /No leftovers from removed apps found/ })).toBeDefined()
+    expect(await ui.find({ text: /System extensions of removed apps/ })).toBeUndefined()
+    await ui.unmount()
+  })
+
+  test(`${surface}: a container held by a running extension is shown but not moved`, async ($, on) => {
+    const calls: string[][] = []
+    const asked: string[] = []
+    await setup(on, calls, { extension: true })
+    answer(on, 'Move to Trash', asked)
+    const ui = await mount($, surface)
+    await ui.press({ key: 'orphans' })
+
+    expect((await ui.find({ key: 'name-1' }))?.text).toBe('com.example.app')
+    expect(await ui.find({ text: /its extension "Example Extension" is still running/ })).toBeDefined()
+    expect(await ui.find({ text: /System extensions of removed apps/ })).toBeDefined()
+    expect(await ui.find({ text: /com\.example\.app\.extension · still running/ })).toBeDefined()
+
+    // The cache goes; the container stays, with the reason
+    await ui.press({ key: 'mark-1' })
+    await ui.press({ key: 'trash' })
+    expect(asked[0]).toMatch(/1 item\(s\)/)
+    expect(calls.find(c => c[0] === '/usr/bin/trash')).toEqual(['/usr/bin/trash', H + '/Library/Caches/com.example.app'])
+    expect(await ui.find({ text: /Skipped: "Example Extension" still running, so macOS protects 1 container/ })).toBeDefined()
     await ui.unmount()
   })
 }

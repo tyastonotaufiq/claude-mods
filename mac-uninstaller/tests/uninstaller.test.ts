@@ -2,8 +2,11 @@ import { describe, expect, test } from 'claude-code/testing'
 
 import type { AppInfo, Leftover } from '../types'
 import {
+  explainTrashError,
+  extensionStatus,
   findOrphans,
   idsIn,
+  isContainer,
   isRemovableApp,
   isRemovableLeftover,
   isSystemApp,
@@ -14,7 +17,10 @@ import {
   ownerById,
   parseFindings,
   parseInfoPlist,
+  parseSystemExtensions,
   PLACES,
+  runningExtensionOf,
+  strayExtensions,
 } from '../hooks/uninstaller'
 
 const H = '/Users/t'
@@ -40,12 +46,12 @@ describe('what may be moved to the Trash', () => {
   test('apps in /Applications, ~/Applications, and one folder down', async () => {
     expect(isRemovableApp('/Applications/Slack.app', H)).toBe(true)
     expect(isRemovableApp(H + '/Applications/Tool.app', H)).toBe(true)
-    expect(isRemovableApp('/Applications/Adobe Photoshop 2025/Adobe Photoshop 2025.app', H)).toBe(true)
+    expect(isRemovableApp('/Applications/Example Studio 2025/Example Studio 2025.app', H)).toBe(true)
   })
 
   test('never anything else as an app', async () => {
     expect(isRemovableApp('/Applications', H)).toBe(false)
-    expect(isRemovableApp('/Applications/Adobe Photoshop 2025', H)).toBe(false)
+    expect(isRemovableApp('/Applications/Example Studio 2025', H)).toBe(false)
     expect(isRemovableApp('/System/Applications/Notes.app', H)).toBe(false)
     expect(isRemovableApp('/Applications/Xcode.app/Contents/Applications/Simulator.app', H)).toBe(false)
     expect(isRemovableApp('/Applications/../System/Applications/Mail.app', H)).toBe(false)
@@ -146,6 +152,50 @@ describe('leftovers of removed apps', () => {
         size: 0,
       },
     ])
+  })
+})
+
+describe('system extensions', () => {
+  // `systemextensionsctl list` as macOS 26 prints it
+  const out = [
+    '4 extension(s)',
+    "--- com.apple.system_extension.network_extension (Go to 'System Settings > General > Login Items & Extensions > Network Extensions' to modify these system extension(s))",
+    'enabled\tactive\tteamID\tbundleID (version)\tname\t[state]',
+    '*\t*\tSAMPLE1234\torg.sample.agent.nwextension (7.2.3/0822)\tprovider\t[activated enabled]',
+    '\t*\tWIDGET1234\tnet.widget.client.extension (6.3.3-1121/1)\tWidget Extension\t[activated waiting for user]',
+    '*\t*\tEXAMPLE123\tcom.example.app.extension (6.5.2/3624198.2610060731)\tExample Extension\t[activated enabled]',
+    '\t\tEXAMPLE123\tcom.example.app.helper (6.4.0/2903266.2602091446)\tExample Helper\t[terminated waiting to uninstall on reboot]',
+  ].join('\n')
+  const exts = parseSystemExtensions(out)
+
+  test('parsed one per row, the header and notes skipped', async () => {
+    expect(exts.map(x => [x.id, x.name, x.active])).toEqual([
+      ['org.sample.agent.nwextension', 'provider', true],
+      ['net.widget.client.extension', 'Widget Extension', true],
+      ['com.example.app.extension', 'Example Extension', true],
+      ['com.example.app.helper', 'Example Helper', false],
+    ])
+    expect(exts.map(extensionStatus)).toEqual(['still running', 'still running', 'still running', 'removed when you restart'])
+  })
+
+  test("listed when no installed app owns them, nor one from the same developer", async () => {
+    const stray = strayExtensions(exts, ['com.example.app', 'net.widget.desktop'])
+    expect(stray.map(x => x.name)).toEqual(['provider'])
+  })
+
+  test("a removed app's running extension holds its containers", async () => {
+    expect(runningExtensionOf('com.example.app', exts)?.name).toBe('Example Extension')
+    expect(runningExtensionOf('com.example', exts)?.name).toBe('Example Extension')
+    expect(runningExtensionOf('com.spotify.client', exts)).toBeUndefined()
+    expect(isContainer(H + '/Library/Containers/com.example.app')).toBe(true)
+    expect(isContainer(H + '/Library/Group Containers/EXAMPLE123.group.com.example.app')).toBe(true)
+    expect(isContainer(H + '/Library/Caches/com.example.app')).toBe(false)
+  })
+
+  test("Finder's -5000 in words", async () => {
+    const raw = "29:108: execution error: Finder got an error: The operation can't be completed because you don't have the necessary permission. (-5000)"
+    expect(explainTrashError(raw)).toBe('macOS refused permission (Finder error -5000).')
+    expect(explainTrashError('something else')).toBe('something else')
   })
 })
 

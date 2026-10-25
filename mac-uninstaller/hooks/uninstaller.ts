@@ -2,7 +2,7 @@
 // is matched to an app, and the rules for what may be moved to the Trash.
 // Nothing here does I/O.
 
-import type { AppInfo, Leftover, Orphan } from '../types'
+import type { AppInfo, Leftover, Orphan, SystemExtension } from '../types'
 
 /** A folder in ~/Library where apps leave files, one per app or per bundle ID. */
 export type Place = {
@@ -95,7 +95,7 @@ export function isSystemApp(app: Pick<AppInfo, 'path' | 'id'>): boolean {
 
 /**
  * Whether `path` is an app bundle this mod may move to the Trash: a `.app` in
- * /Applications or ~/Applications, or one folder below (Adobe's own folders).
+ * /Applications or ~/Applications, or one folder below (apps installed in a folder of their own).
  */
 export function isRemovableApp(path: string, home: string): boolean {
   const p = cleanPath(path)
@@ -231,6 +231,59 @@ export function findOrphans(
 /** `com.google` for com.google.Chrome. */
 export function vendorOf(id: string): string {
   return id.toLowerCase().split('.').slice(0, 2).join('.')
+}
+
+/**
+ * Parse `systemextensionsctl list`. Each extension is a tab-separated row:
+ * enabled (*), active (*), team ID, `bundle.id (version)`, name, `[state]`.
+ */
+export function parseSystemExtensions(out: string): SystemExtension[] {
+  const list: SystemExtension[] = []
+  for (const line of out.split('\n')) {
+    const [, active, teamId = '', idVersion = '', name = '', state = ''] = line.split('\t')
+    const id = /^(\S+) \(/.exec(idVersion)?.[1]
+    const st = /^\[(.*)\]$/.exec(state.trim())?.[1]
+    if (!id || st === undefined || !/^[A-Z0-9]{10}$/.test(teamId)) continue
+    list.push({ id, teamId, name, state: st, active: active?.trim() === '*' })
+  }
+  return list
+}
+
+/**
+ * System extensions whose app is gone: no installed app's ID is theirs or a
+ * prefix of theirs, and no installed app comes from the same developer
+ * (an extension's ID may not start with its app's).
+ */
+export function strayExtensions(exts: readonly SystemExtension[], installedIds: readonly string[]): SystemExtension[] {
+  const ids = installedIds.map(i => i.toLowerCase())
+  const vendors = new Set(ids.map(vendorOf))
+  return exts.filter(x => {
+    const id = x.id.toLowerCase()
+    if (APPLE_PREFIXES.some(a => id.startsWith(a))) return false
+    return !ids.some(i => isIdOrChild(id, i)) && !vendors.has(vendorOf(id))
+  })
+}
+
+/** The running extension of the app with bundle ID `id` (com.example.app.extension for com.example.app). */
+export function runningExtensionOf(id: string, exts: readonly SystemExtension[]): SystemExtension | undefined {
+  const lid = id.toLowerCase()
+  return exts.find(x => x.active && isIdOrChild(x.id.toLowerCase(), lid))
+}
+
+/** An extension's state in words. */
+export function extensionStatus(x: SystemExtension): string {
+  if (x.state.includes('uninstall')) return 'removed when you restart'
+  return x.active ? 'still running' : x.state
+}
+
+/** Whether `path` is an app's container, which macOS protects while the app's extension runs. */
+export function isContainer(path: string): boolean {
+  return /\/Library\/(Group )?Containers\/[^/]+$/.test(cleanPath(path))
+}
+
+/** Finder's error -5000 in words; anything else as it came. */
+export function explainTrashError(why: string): string {
+  return /\(-5000\)/.test(why) ? 'macOS refused permission (Finder error -5000).' : why
 }
 
 /** Read `plutil -convert json` output of an Info.plist into an app, or nothing. */
