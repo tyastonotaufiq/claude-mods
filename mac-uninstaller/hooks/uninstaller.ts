@@ -128,8 +128,10 @@ export function idsIn(name: string): string[] {
   let base = name
   for (const s of SUFFIXES) if (base.endsWith(s)) base = base.slice(0, -s.length)
   const out = [base]
+  // Either comes first: group.TEAMID.x or TEAMID.group.x
   if (base.startsWith('group.')) out.push((base = base.slice('group.'.length)))
-  if (TEAM_PREFIX.test(base)) out.push(base.replace(TEAM_PREFIX, ''))
+  if (TEAM_PREFIX.test(base)) out.push((base = base.replace(TEAM_PREFIX, '')))
+  if (base.startsWith('group.')) out.push(base.slice('group.'.length))
   return out.map(x => x.toLowerCase())
 }
 

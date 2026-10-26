@@ -258,6 +258,19 @@ describe('what counts as a bundle ID', () => {
       'u5sr49n3pt.only.if.amphetamine',
       'only.if.amphetamine',
     ])
+    expect(idsIn('EXAMPLE123.group.com.example.app')).toEqual([
+      'example123.group.com.example.app',
+      'group.com.example.app',
+      'com.example.app',
+    ])
+  })
+
+  test("a removed app's TEAMID.group container is its leftover", async () => {
+    const children = ['Group Containers', 'Application Scripts'].map(dir => ({
+      path: H + '/Library/' + dir + '/EXAMPLE123.group.com.example.app',
+      place: place('Library/' + dir),
+    }))
+    expect(findOrphans(children, []).map(o => [o.id, o.paths.length])).toEqual([['com.example.app', 2]])
   })
 
   test("log files, cache names and Apple's Shortcuts aren't removed apps", async () => {
