@@ -1,8 +1,8 @@
 # Mac Uninstaller
 
-A Claude Code plugin that uninstalls Mac apps completely, without leaving Claude Code. Dragging an app to the Trash leaves its caches, settings, containers and saved state behind in `~/Library`. This finds them and moves them to the Trash along with the app, like AppCleaner.
+A Claude Code plugin that uninstalls Mac apps completely, without leaving Claude Code. Dragging an app to the Trash leaves its caches, settings, containers and saved state behind in `~/Library`. This finds them and shows them in Finder, already selected, so you move them to the Trash along with the app yourself.
 
-- **`/mac-uninstaller`** opens a pane listing your apps. Pick one to see the app and every file it left, with sizes, and move what you mark to the Trash. `/mac-uninstaller slack` opens Slack directly.
+- **`/mac-uninstaller`** opens a pane listing your apps. Pick one to see the app and every file it left, with sizes, and show what you mark in Finder to move it to the Trash. `/mac-uninstaller slack` opens Slack directly.
 - **Leftovers of removed apps** finds what apps you already deleted left behind, one row per app.
 - **The `mac-uninstall` skill** lets Claude dig deeper: dotfolders like `~/.vscode`, CLI config, login items, files an installer put in `/Library`. Claude adds what it finds to the pane, with its reasoning, and you decide there.
 
@@ -11,7 +11,7 @@ A Claude Code plugin that uninstalls Mac apps completely, without leaving Claude
 ## Requirements
 
 - Claude Code v2.1.287 or later, in the terminal or the Code tab of the Claude Desktop app
-- macOS. On macOS 15+ it uses the built-in `trash` command. Anything that needs an admin password (apps from the App Store or an installer), and everything on older versions, goes through Finder, which asks for it. The first time, macOS asks you to let your terminal control Finder.
+- macOS
 
 ## Install
 
@@ -47,7 +47,7 @@ To load it in every session (and in the Desktop app), add it to `CLAUDE_CODE_PLU
 2. Open the **Code** tab and start a session. Mods only run in the Code tab, not in regular chats.
 3. Type `/mac-uninstaller` in the prompt box. The pane opens beside the conversation.
 
-macOS permission prompts (controlling Finder, Full Disk Access, access to other apps' data) name the Claude app instead of your terminal, so grant them to Claude.
+macOS permission prompts (Full Disk Access, access to other apps' data) name the Claude app instead of your terminal, so grant them to Claude.
 
 ## The pane
 
@@ -67,13 +67,14 @@ macOS permission prompts (controlling Finder, Full Disk Access, access to other 
 
 Unmark the app itself to keep it and only remove its leftovers, for example to reset an app to a clean state.
 
+The pane doesn't move anything itself. Finder does, so macOS handles it as it does any move you make there: it asks for your password for an app installed by the App Store or an installer, and tells you if something is in use. After moving, press `r`: rows for what you moved disappear.
+
 | Key | Action |
 | --- | --- |
 | Up / Down, Enter | Move between rows, mark or unmark |
-| `u` | Move what's marked to the Trash (asks first, shows the total) |
 | `r` | Look for this app's leftovers again |
 | `a` / `c` | Mark all / unmark all |
-| `f` | Show the first marked item in Finder |
+| `f` | Show everything marked in Finder, selected: one window per folder. Press ⌘⌫ there to move them to the Trash, then `r` here |
 | `b` | Back to all apps |
 
 **Leftovers of removed apps.** These are files in `~/Library` named after a bundle ID that no installed app has, grouped per app so a helper like `net.whatsapp.whatsapp.intents` shares WhatsApp's row. The pane leaves out:
@@ -81,21 +82,18 @@ Unmark the app itself to keep it and only remove its leftovers, for example to r
 - IDs from a developer that still has an app installed (Google's updater while Chrome is there)
 - apps Spotlight finds anywhere else on the Mac
 
-Nothing here is marked for you: check each row, mark it (or `a` to mark all), and press `t`. `r` scans again, reading the app list afresh. Some rows belong to command-line tools rather than apps (Java, Firebase), and are usually tiny.
+Nothing here is marked for you: check each row, mark it (or `a` to mark all), and press `f` to show its files in Finder. `r` scans again, reading the app list afresh. Some rows belong to command-line tools rather than apps (Java, Firebase), and are usually tiny.
 
-**System extensions.** Some apps install system extensions, which keep running after the app is gone (or while it sits in the Trash). Below the leftovers, the pane lists each extension whose app is gone, and whether it's still running or removed at the next restart. It can't remove them: use System Settings → General → Login Items & Extensions, or the app's own uninstaller. While an app's extension runs, macOS protects its containers, so their row is yellow and `t` leaves the containers out.
+**System extensions.** Some apps install system extensions, which keep running after the app is gone (or while it sits in the Trash). Below the leftovers, the pane lists each extension whose app is gone, and whether it's still running or removed at the next restart. It can't remove them: use System Settings → General → Login Items & Extensions, or the app's own uninstaller. While an app's extension runs, macOS protects its containers, so Finder can't move them either: their row is yellow, and `f` says what to do first.
 
 ## Safety
 
-- **Nothing is deleted.** Everything goes to the Trash, where Put Back works. You get the space back when you empty the Trash.
-- Every move asks first, naming the app, the item count and the size.
-- An app that's running isn't moved: quit it first.
-- Each path is checked again right before it moves:
+- **The pane never moves or deletes anything.** It shows what you mark in Finder, and you move it to the Trash there, where Put Back works. You get the space back when you empty the Trash.
+- Each path is checked again before it's shown:
   - an app must be a `.app` in `/Applications` or `~/Applications` (or one folder down, for apps installed in a folder of their own)
   - a leftover must sit directly inside one of the `~/Library` places apps write to, never the place itself
 - Another app's container is never listed, even if Claude proposes it. Keychains, Mail, iCloud Drive, `~/.ssh`, `~/.aws`, shell startup files and `~/.claude` are always refused.
-- System-wide files under `/Library` need admin rights and are never moved by the pane. Claude can list them and give you the commands to remove them.
-- Every move is logged in the plugin's store (last 200).
+- System-wide files under `/Library` are never listed by the pane. Claude can list them and give you the commands to remove them.
 
 Mods run with your permissions and aren't sandboxed. Read `hooks/register.tsx` and `hooks/uninstaller.ts` before installing.
 
@@ -106,8 +104,8 @@ mac-uninstaller/
 ├── .claude-plugin/plugin.json
 ├── hooks/
 │   ├── hooks.json
-│   ├── register.tsx     the pane, /mac-uninstaller, scanning, moving to the Trash
-│   └── uninstaller.ts   where apps leave files, matching, and the trash rules (no I/O)
+│   ├── register.tsx     the pane, /mac-uninstaller, scanning, showing in Finder
+│   └── uninstaller.ts   where apps leave files, matching, and what may be shown (no I/O)
 ├── skills/mac-uninstall/SKILL.md
 ├── docs/screenshot.png
 ├── types/index.d.ts

@@ -10,8 +10,8 @@ const SLACK = 'com.tinyspeck.slackmacgap'
 function fakeMac(
   on: any,
   calls: string[][],
-  opts: { running?: boolean; findings?: string; trashFails?: boolean; extension?: boolean } = {},
-) {
+  opts: { findings?: string; extension?: boolean } = {},
+): Set<string> {
   const dirs: Record<string, string[]> = {
     '/Applications': ['Slack.app', 'Safari.app', 'Example Studio 2025', 'Utilities', 'Tasbih.app'],
     '/Applications/Example Studio 2025': ['Example Studio 2025.app'],
@@ -49,7 +49,6 @@ function fakeMac(
     ...Object.keys(plists).map(p => (p.endsWith('/WrappedBundle') ? p + '/Info.plist' : p)),
     ...Object.entries(dirs).flatMap(([d, names]) => names.map(n => d + '/' + n)),
     H + '/.slack',
-    '/usr/bin/trash',
   ])
   if (opts.findings) exists.add(H + '/.claude/mac-uninstaller/findings.json')
   const ok = (stdout: string, exitCode = 0) => ({
@@ -71,23 +70,18 @@ function fakeMac(
       return plists[app] ? ok(JSON.stringify(plists[app])) : ok('', 1)
     }
     if (argv[0] === 'du') return ok(`${kb[argv[2] ?? ''] ?? 4}\t${argv[2]}`)
-    if (argv[0] === 'pgrep') return opts.running ? ok('123\n') : ok('', 1)
     if (argv[0] === 'systemextensionsctl') return ok(opts.extension ? extensions : '')
     // Spotlight knows com.other.app is still installed, outside /Applications
     if (argv[0] === 'mdfind') return ok(argv[1]?.includes('com.other.app') ? H + '/Downloads/Other.app\n' : '')
-    if (argv[0] === '/usr/bin/trash' || argv[0] === 'osascript') {
-      if (!opts.trashFails) for (const p of argv.slice(1)) exists.delete(p)
-      return ok('', opts.trashFails ? 1 : 0)
-    }
     return ok('')
   })
+  return exists
 }
 
-function answer(on: any, choice: string, asked: string[] = []) {
-  on('tool.call', { tool: 'AskUserQuestion' }, async (_$: unknown, e: any) => {
-    asked.push(e.questions[0].question)
-    return { result: { questions: e.questions, answers: { [e.questions[0].question]: choice } } } as never
-  })
+/** The paths an osascript call shows in Finder. */
+function revealed(calls: string[][]): string[] {
+  const argv = calls.find(c => c[0] === 'osascript') ?? []
+  return argv.slice(argv.indexOf('--') + 1)
 }
 
 const PANE = {
@@ -103,11 +97,12 @@ async function mount($: any, surface: 'terminal' | 'desktop') {
   return $.ui.mount({ plugin: 'mac-uninstaller', surface, component: 'Pane', requestId: 'mac-uninstaller', props: PANE as never })
 }
 
-async function setup(on: any, calls: string[][], opts: Parameters<typeof fakeMac>[2] = {}) {
-  fakeMac(on, calls, opts)
+async function setup(on: any, calls: string[][], opts: Parameters<typeof fakeMac>[2] = {}): Promise<Set<string>> {
+  const exists = fakeMac(on, calls, opts)
   mock.store(on)
   mock.env(on, { HOME: H })
   mock.clock(on, { now: 1_760_000_000_000 })
+  return exists
 }
 
 for (const surface of ['terminal', 'desktop'] as const) {
@@ -129,11 +124,9 @@ for (const surface of ['terminal', 'desktop'] as const) {
     await ui.unmount()
   })
 
-  test(`${surface}: uninstalls an app with what it left, after asking`, async ($, on) => {
+  test(`${surface}: shows an app and what it left in Finder, and a rescan drops what was moved`, async ($, on) => {
     const calls: string[][] = []
-    const asked: string[] = []
-    await setup(on, calls)
-    answer(on, 'Move to Trash', asked)
+    const exists = await setup(on, calls)
     const ui = await mount($, surface)
     await ui.press({ key: 'reload' })
     await ui.press({ key: 'app-1' })
@@ -154,35 +147,37 @@ for (const surface of ['terminal', 'desktop'] as const) {
     expect((await ui.find({ key: 'name-0' }))?.text).toMatch(/\/Applications\/Slack\.app/)
 
     // The app, cache, settings and container are marked; the name match and shared container aren't
-    expect((await ui.find({ key: 'uninstall' }))?.text).toMatch(/\(4, 1000 MB\)/)
-    await ui.press({ key: 'uninstall' })
-    expect(asked[0]).toMatch(/Move Slack and 3 leftover\(s\), 1000 MB, to the Trash\?/)
+    expect((await ui.find({ key: 'reveal' }))?.text).toMatch(/\(4, 1000 MB\)/)
+    await ui.press({ key: 'reveal' })
+    const shown = [
+      '/Applications/Slack.app',
+      H + '/Library/Caches/' + SLACK,
+      H + '/Library/Preferences/' + SLACK + '.plist',
+      H + '/Library/Containers/' + SLACK,
+    ]
+    expect(revealed(calls).sort()).toEqual([...shown].sort())
+    expect(calls.some(c => c[0] === 'rm' || c[0] === '/usr/bin/trash')).toBe(false)
+    expect(await ui.find({ text: /Showed 4 item\(s\) in Finder\. Press ⌘⌫ there/ })).toBeDefined()
 
-    const trashCall = calls.find(c => c[0] === '/usr/bin/trash')
-    expect(trashCall).toContain('/Applications/Slack.app')
-    expect(trashCall).toContain(H + '/Library/Containers/' + SLACK)
-    expect(trashCall).not.toContain(H + '/Library/Application Support/Slack')
-    expect(calls.some(c => c[0] === 'rm')).toBe(false)
-    expect(await ui.find({ text: /Moved 4 item\(s\), 1000 MB, to the Trash/ })).toBeDefined()
+    // The person moves them to the Trash in Finder, then rescans: only the rest is left
+    for (const p of shown) exists.delete(p)
+    exists.delete('/Applications/Slack.app/Contents/Info.plist')
+    await ui.press({ key: 'rescan' })
     expect((await ui.find({ key: 'name-0' }))?.text).toMatch(/Application Support\/Slack/)
+    expect(await ui.find({ text: /Slack left 2 item\(s\) behind/ })).toBeDefined()
     await ui.unmount()
   })
 
-  test(`${surface}: a running app isn't moved, and cancelling moves nothing`, async ($, on) => {
+  test(`${surface}: nothing marked shows nothing`, async ($, on) => {
     const calls: string[][] = []
-    await setup(on, calls, { running: true })
-    answer(on, 'Cancel')
+    await setup(on, calls)
     const ui = await mount($, surface)
     await ui.press({ key: 'reload' })
     await ui.press({ key: 'app-1' })
-
-    await ui.press({ key: 'uninstall' })
-    expect(await ui.find({ text: /Slack is running\. Quit it/ })).toBeDefined()
-
-    // Leftovers alone don't need the app quit, but Cancel stops them
-    await ui.press({ key: 'mark-0' })
-    await ui.press({ key: 'uninstall' })
-    expect(calls.some(c => c[0] === '/usr/bin/trash' || c[0] === 'osascript')).toBe(false)
+    await ui.press({ key: 'clear' })
+    await ui.press({ key: 'reveal' })
+    expect(calls.some(c => c[0] === 'osascript')).toBe(false)
+    expect(await ui.find({ text: /Mark items first/ })).toBeDefined()
     await ui.unmount()
   })
 
@@ -205,15 +200,13 @@ for (const surface of ['terminal', 'desktop'] as const) {
     expect(names).toContain('~/.slack')
     expect(names).not.toContain('~/.ssh')
     expect(await ui.find({ text: /Found by Claude · Slack CLI settings/ })).toBeDefined()
-    expect((await ui.find({ key: 'uninstall' }))?.text).toMatch(/\(4,/)
+    expect((await ui.find({ key: 'reveal' }))?.text).toMatch(/\(4,/)
     await ui.unmount()
   })
 
-  test(`${surface}: finds and trashes leftovers of removed apps`, async ($, on) => {
+  test(`${surface}: finds leftovers of removed apps and shows them in Finder`, async ($, on) => {
     const calls: string[][] = []
-    const asked: string[] = []
-    await setup(on, calls)
-    answer(on, 'Move to Trash', asked)
+    const exists = await setup(on, calls)
     const ui = await mount($, surface)
     await ui.press({ key: 'orphans' })
 
@@ -222,20 +215,14 @@ for (const surface of ['terminal', 'desktop'] as const) {
     expect(await ui.find({ text: /Cache, Settings · 2 item\(s\) · no app with this ID \(may be a command-line tool\)/ })).toBeDefined()
 
     await ui.press({ key: 'mark-all' })
-    expect((await ui.find({ key: 'trash' }))?.text).toMatch(/\(1, 900 MB\)/)
-    await ui.press({ key: 'clear' })
-    await ui.press({ key: 'mark-0' })
-    await ui.press({ key: 'trash' })
-    expect(asked[0]).toMatch(/Move what 1 removed app\(s\) left, 2 item\(s\), 900 MB, to the Trash\?/)
-    const trashCall = calls.find(c => c[0] === '/usr/bin/trash')
-    expect(trashCall).toEqual([
-      '/usr/bin/trash',
-      H + '/Library/Caches/com.spotify.client',
-      H + '/Library/Preferences/com.spotify.client.plist',
-    ])
-    expect(await ui.find({ text: /Moved 2 item\(s\) to the Trash/ })).toBeDefined()
+    expect((await ui.find({ key: 'reveal' }))?.text).toMatch(/\(1, 900 MB\)/)
+    await ui.press({ key: 'reveal' })
+    const shown = [H + '/Library/Caches/com.spotify.client', H + '/Library/Preferences/com.spotify.client.plist']
+    expect(revealed(calls)).toEqual(shown)
+    expect(await ui.find({ text: /Showed 2 item\(s\) in Finder/ })).toBeDefined()
 
-    // Rescanning finds nothing left
+    // Moved in Finder, then rescanned: nothing left
+    for (const p of shown) exists.delete(p)
     await ui.press({ key: 'rescan' })
     expect(await ui.find({ key: 'name-0' })).toBeUndefined()
     expect(await ui.find({ text: /No leftovers from removed apps found/ })).toBeDefined()
@@ -243,11 +230,9 @@ for (const surface of ['terminal', 'desktop'] as const) {
     await ui.unmount()
   })
 
-  test(`${surface}: a container held by a running extension is shown but not moved`, async ($, on) => {
+  test(`${surface}: a container held by a running extension is shown, with what to do first`, async ($, on) => {
     const calls: string[][] = []
-    const asked: string[] = []
     await setup(on, calls, { extension: true })
-    answer(on, 'Move to Trash', asked)
     const ui = await mount($, surface)
     await ui.press({ key: 'orphans' })
 
@@ -256,12 +241,10 @@ for (const surface of ['terminal', 'desktop'] as const) {
     expect(await ui.find({ text: /System extensions of removed apps/ })).toBeDefined()
     expect(await ui.find({ text: /com\.example\.app\.extension · still running/ })).toBeDefined()
 
-    // The cache goes; the container stays, with the reason
     await ui.press({ key: 'mark-1' })
-    await ui.press({ key: 'trash' })
-    expect(asked[0]).toMatch(/1 item\(s\)/)
-    expect(calls.find(c => c[0] === '/usr/bin/trash')).toEqual(['/usr/bin/trash', H + '/Library/Caches/com.example.app'])
-    expect(await ui.find({ text: /Skipped: "Example Extension" still running, so macOS protects 1 container/ })).toBeDefined()
+    await ui.press({ key: 'reveal' })
+    expect(revealed(calls).sort()).toEqual([H + '/Library/Caches/com.example.app', H + '/Library/Containers/com.example.app'])
+    expect(await ui.find({ text: /"Example Extension" still running, so macOS protects its containers/ })).toBeDefined()
     await ui.unmount()
   })
 }

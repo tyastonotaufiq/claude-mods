@@ -281,11 +281,6 @@ export function isContainer(path: string): boolean {
   return /\/Library\/(Group )?Containers\/[^/]+$/.test(cleanPath(path))
 }
 
-/** Finder's error -5000 in words; anything else as it came. */
-export function explainTrashError(why: string): string {
-  return /\(-5000\)/.test(why) ? 'macOS refused permission (Finder error -5000).' : why
-}
-
 /** Read `plutil -convert json` output of an Info.plist into an app, or nothing. */
 export function parseInfoPlist(json: string, path: string): AppInfo | undefined {
   let data: Record<string, unknown>
@@ -371,15 +366,24 @@ export function matchesQuery(app: AppInfo, query: string): boolean {
   return !q || app.name.toLowerCase().includes(q) || app.id.toLowerCase().includes(q)
 }
 
-/** Quote a string for an AppleScript string literal. */
-export function appleScriptQuote(s: string): string {
-  return '"' + s.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"'
-}
+/**
+ * The `osascript -l JavaScript` script that shows the paths it's given selected
+ * in Finder: macOS's own "show in Finder" (NSWorkspace), one window per folder.
+ * Apps are shown in a second call, a moment later, so their window ends up in
+ * front, to be moved to the Trash first: windows from one call open in no set order.
+ * The paths come as arguments, so nothing in them is ever read as code.
+ */
+export const REVEAL_SCRIPT =
+  'function run(argv) { ObjC.import("AppKit"); ' +
+  'const show = ps => ps.length && $.NSWorkspace.sharedWorkspace.activateFileViewerSelectingURLs($(ps.map(p => $.NSURL.fileURLWithPath(p)))); ' +
+  'const apps = argv.filter(p => p.endsWith(".app")); ' +
+  'show(argv.filter(p => !p.endsWith(".app"))); ' +
+  'if (apps.length && apps.length < argv.length) delay(0.5); ' +
+  'show(apps) }'
 
-/** The AppleScript that moves `paths` to the Trash through Finder (so Put Back works). */
-export function finderTrashScript(paths: readonly string[]): string {
-  const files = paths.map(p => `POSIX file ${appleScriptQuote(p)}`).join(', ')
-  return `tell application "Finder" to delete {${files}}`
+/** The command that shows `paths` selected in Finder. */
+export function revealCommand(paths: readonly string[]): string[] {
+  return ['osascript', '-l', 'JavaScript', '-e', REVEAL_SCRIPT, '--', ...paths.map(cleanPath)]
 }
 
 /** A path shown relative to home, as `~/...`. */

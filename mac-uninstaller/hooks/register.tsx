@@ -2,14 +2,15 @@
 // leaves in ~/Library, opened with /mac-uninstaller.
 //
 // Safety rules, enforced here and not left to the UI:
-//  - Nothing is deleted. Marked items go to the Trash (Put Back works), after
-//    a confirmation that names the app, how many items and how much space.
-//  - Every path is checked again right before it's moved: the app itself must
-//    be a .app in /Applications or ~/Applications, and a leftover must sit
-//    directly in one of the ~/Library places apps write to (isRemovableLeftover).
+//  - The pane never moves or deletes anything. It shows the marked items
+//    selected in Finder, and the person moves them to the Trash there, where
+//    macOS asks for a password or refuses as it does for any Finder move.
+//  - Every path is checked again before it's shown: the app itself must be a
+//    .app in /Applications or ~/Applications, and a leftover must sit directly
+//    in one of the ~/Library places apps write to (isRemovableLeftover).
 //  - Only files named after the app's bundle ID are marked by default. Name
 //    matches and shared containers are listed unmarked, to be checked first.
-//  - macOS's own apps aren't listed, and an app that's running isn't moved.
+//  - macOS's own apps aren't listed.
 
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
@@ -17,9 +18,7 @@ import type { EngineInterface, Register } from 'claude-code'
 import type { AppInfo, Leftover, Orphan, SystemExtension, View } from '../types'
 import {
   APP_FOLDERS,
-  explainTrashError,
   extensionStatus,
-  finderTrashScript,
   findOrphans,
   humanSize,
   isContainer,
@@ -36,6 +35,7 @@ import {
   parseInfoPlist,
   parseSystemExtensions,
   PLACES,
+  revealCommand,
   runningExtensionOf,
   strayExtensions,
   tildify,
@@ -206,7 +206,10 @@ async function openApp($: $, picked: AppInfo) {
       match: 'app',
       reason: [picked.version && 'Version ' + picked.version, picked.id].filter(Boolean).join(' · '),
     }
-    const found: Leftover[] = [appRow]
+    // Gone when the person moved it to the Trash in Finder and rescanned
+    const found: Leftover[] = []
+    if (await $.fs.exists(picked.path)) found.push(appRow)
+    else await update($, apps, list => list.filter(a => a.path !== picked.path))
     for (const c of await placeChildren($, home)) {
       const match = matchLeftover(c.name, c.place, picked, installed)
       if (match && isRemovableLeftover(c.path, home)) {
@@ -230,11 +233,13 @@ async function openApp($: $, picked: AppInfo) {
       await update($, leftovers, list => list.map(l => (l.path === row.path ? { ...l, size } : l)))
       await update($, busy, () => `Measuring ${++done} of ${rows.length}…`)
     })
-    const extra = rows.length - 1
+    const extra = rows.filter(l => l.match !== 'app').length
     await update($, message, () =>
       extra
-        ? `${picked.name} left ${extra} item(s) behind. Press u to move what's marked to the Trash.`
-        : `${picked.name} left nothing in the usual places. Press u to move the app to the Trash, or ask Claude to look deeper.`,
+        ? `${picked.name} left ${extra} item(s) behind. Press f to show what's marked in Finder.`
+        : rows.length
+          ? `${picked.name} left nothing in the usual places. Press f to show the app in Finder, or ask Claude to look deeper.`
+          : `${picked.name} and what it left are gone.`,
     )
   })
 }
@@ -250,7 +255,7 @@ async function refreshFindings($: $) {
   const rows = mergeLeftovers(scan, findings)
   await update($, leftovers, () => rows)
   const fresh = findings.filter(f => !current.some(c => c.path === f.path))
-  if (fresh.length) await update($, message, () => `Claude found ${fresh.length} more item(s). Check them, then press u.`)
+  if (fresh.length) await update($, message, () => `Claude found ${fresh.length} more item(s). Check them, then press f.`)
 }
 
 /** Every system extension macOS knows, or none when systemextensionsctl can't tell. */
@@ -305,153 +310,55 @@ async function openOrphans($: $, fresh = false) {
     const list = await read($, orphans)
     await update($, message, () =>
       list.length
-        ? `${list.length} removed apps left ${humanSize(list.reduce((n, o) => n + o.size, 0))}. Check each one, mark it, then press t.`
+        ? `${list.length} removed apps left ${humanSize(list.reduce((n, o) => n + o.size, 0))}. Check each one, mark it, then press f.`
         : 'No leftovers from removed apps found.',
     )
   })
 }
 
-/** Whether the app is running, by any process launched from inside its bundle. */
-async function isRunning($: $, a: AppInfo): Promise<boolean> {
-  try {
-    const r = await $.process.run(['pgrep', '-f', a.path + '/Contents/'], { timeoutMs: 10_000 })
-    return r.exitCode === 0 && r.stdout.trim() !== ''
-  } catch {
-    return false
-  }
-}
-
-/** Move `paths` to the Trash, keeping Put Back. Returns the paths still there and why. */
-async function trash($: $, paths: readonly string[]): Promise<{ left: string[]; why: string }> {
-  let why = ''
-  let left = [...paths]
-  // macOS 15 has a trash command; it can't move what needs an admin password,
-  // so whatever is left goes through Finder, which asks for it.
-  if (await $.fs.exists('/usr/bin/trash')) {
-    const r = await $.process.run(['/usr/bin/trash', ...left], { timeoutMs: 300_000 })
-    why = (r.stderr || r.stdout).trim()
-    left = await stillThere($, left)
-  }
-  if (left.length) {
-    const r = await $.process.run(['osascript', '-e', finderTrashScript(left)], { timeoutMs: 300_000 })
-    why = (r.stderr || r.stdout).trim() || why
-    left = await stillThere($, left)
-  }
-  return { left, why: explainTrashError(why) }
-}
-
-async function stillThere($: $, paths: readonly string[]): Promise<string[]> {
-  const left: string[] = []
-  for (const p of paths) if (await $.fs.exists(p)) left.push(p)
-  return left
-}
-
-async function confirm($: $, question: string): Promise<boolean> {
-  try {
-    const choice = await $.ui.ask(question, { header: 'Trash', options: ['Move to Trash', 'Cancel'] })
-    return choice === 'Move to Trash'
-  } catch {
-    return false // dismissed
-  }
-}
-
-async function logMoved($: $, what: string, paths: readonly string[], bytes: number) {
-  const log = ((await $.store.get('log')) as unknown[] | undefined) ?? []
-  await $.store.set('log', [...log, { at: await $.clock.now(), what, paths, bytes }].slice(-200))
-}
-
-/** Move the open app and its marked leftovers to the Trash. */
-async function uninstall($: $) {
-  if (await read($, busy)) {
-    await update($, message, () => 'Wait for the measuring to finish, then press u.')
+/** Show `paths` selected in Finder, for the person to move to the Trash there. */
+async function reveal($: $, paths: readonly string[], note = '') {
+  if (paths.length === 0) {
+    await update($, message, () => note || 'Mark items first ([ ] beside each row).')
     return
   }
-  const picked = await read($, app)
-  if (!picked) return
+  try {
+    const r = await $.process.run(revealCommand(paths), { timeoutMs: 30_000 })
+    if (r.exitCode !== 0) throw new Error((r.stderr || r.stdout).trim() || 'Finder did not answer.')
+  } catch (err) {
+    await update($, message, () => 'Could not show them in Finder: ' + (err instanceof Error ? err.message : String(err)))
+    return
+  }
+  await update($, message, () =>
+    `Showed ${paths.length} item(s) in Finder. Press ⌘⌫ there to move them to the Trash ` +
+    '(Finder asks for your password if needed), then press r here to check.' +
+    (note ? ' ' + note : ''),
+  )
+}
+
+/** Show the open app's marked rows in Finder. */
+async function revealApp($: $) {
   const home = await homeOf($)
   const picks = await read($, marked)
-  const rows = (await read($, leftovers)).filter(l => picks.includes(l.path))
-  const chosen = rows.filter(l => (l.match === 'app' ? isRemovableApp(l.path, home) : isRemovableLeftover(l.path, home)))
-  if (chosen.length === 0) {
-    await update($, message, () => 'Mark items first ([ ] beside each row).')
-    return
-  }
-  const withApp = chosen.some(l => l.match === 'app')
-  if (withApp && (await isRunning($, picked))) {
-    await update($, message, () => `${picked.name} is running. Quit it, then press u again.`)
-    return
-  }
-  const bytes = chosen.reduce((n, l) => n + l.size, 0)
-  const others = chosen.length - (withApp ? 1 : 0)
-  const what = withApp
-    ? `${picked.name}${others ? ` and ${others} leftover(s)` : ''}`
-    : `${others} leftover(s) of ${picked.name} (the app stays)`
-  if (!(await confirm($, `Move ${what}, ${humanSize(bytes)}, to the Trash?`))) return
-
-  await task($, 'Moving to the Trash…', async () => {
-    const paths = chosen.map(l => l.path)
-    const { left, why } = await trash($, paths)
-    const moved = paths.filter(p => !left.includes(p))
-    const movedBytes = chosen.filter(l => moved.includes(l.path)).reduce((n, l) => n + l.size, 0)
-    await update($, leftovers, list => list.filter(l => !moved.includes(l.path)))
-    await update($, marked, () => left)
-    if (moved.includes(picked.path)) await update($, apps, list => list.filter(a => a.path !== picked.path))
-    await logMoved($, picked.id, moved, movedBytes)
-
-    if (left.length) {
-      await update($, message, () =>
-        `Moved ${moved.length}, ${left.length} could not be moved (still marked)` +
-        (why ? `: ${why.slice(0, 200)}` : '. Quit the app and try again.'),
-      )
-    } else {
-      await update($, message, () =>
-        `Moved ${moved.length} item(s), ${humanSize(movedBytes)}, to the Trash. Empty the Trash to get the space back.`,
-      )
-    }
-  })
+  const paths = (await read($, leftovers))
+    .filter(l => picks.includes(l.path))
+    .filter(l => (l.match === 'app' ? isRemovableApp(l.path, home) : isRemovableLeftover(l.path, home)))
+    .map(l => l.path)
+  await reveal($, paths)
 }
 
-/** Move the marked orphans' files to the Trash. */
-async function trashOrphans($: $) {
-  if (await read($, busy)) {
-    await update($, message, () => 'Wait for the scan to finish, then press t.')
-    return
-  }
+/** Show every file of the marked removed apps in Finder. */
+async function revealOrphans($: $) {
   const home = await homeOf($)
   const picks = await read($, marked)
   const chosen = (await read($, orphans)).filter(o => picks.includes(o.id))
-  // Containers of an app whose extension still runs would only fail: leave them
+  // macOS protects the containers of an app whose extension still runs: Finder can't move them either
   const held = chosen.filter(o => o.extension)
-  const blocked = held.flatMap(o => o.paths.filter(isContainer))
-  const heldNote = held.length
-    ? `${held.map(o => `"${o.extension}"`).join(', ')} still running, so macOS protects ${blocked.length} container(s). ` +
-      'Remove the extension in System Settings → General → Login Items & Extensions, restart, then try again.'
+  const note = held.length
+    ? `${held.map(o => `"${o.extension}"`).join(', ')} still running, so macOS protects ${held.length === 1 ? 'its' : 'their'} containers. ` +
+      'Remove it in System Settings → General → Login Items & Extensions and restart first.'
     : ''
-  const paths = chosen.flatMap(o => o.paths).filter(p => isRemovableLeftover(p, home) && !blocked.includes(p))
-  if (paths.length === 0) {
-    await update($, message, () => heldNote || 'Mark items first ([ ] beside each row).')
-    return
-  }
-  const bytes = chosen.reduce((n, o) => n + o.size, 0)
-  if (!(await confirm($, `Move what ${chosen.length} removed app(s) left, ${paths.length} item(s), ${humanSize(bytes)}, to the Trash?`))) return
-
-  await task($, 'Moving to the Trash…', async () => {
-    const { left, why } = await trash($, paths)
-    const moved = paths.filter(p => !left.includes(p))
-    const remaining = (await read($, orphans)).flatMap(o => {
-      const rest = o.paths.filter(p => !moved.includes(p))
-      return rest.length ? [{ ...o, paths: rest }] : []
-    })
-    await update($, orphans, () => remaining)
-    await update($, marked, () => remaining.filter(o => picks.includes(o.id)).map(o => o.id))
-    await logMoved($, 'orphans', moved, bytes)
-    await update($, message, () =>
-      (left.length
-        ? `Moved ${moved.length}, ${left.length} could not be moved (still marked)${why ? ': ' + why.slice(0, 200) : '.'}`
-        : `Moved ${moved.length} item(s) to the Trash. Empty the Trash to get the space back.`) +
-      (heldNote ? ' Skipped: ' + heldNote : ''),
-    )
-  })
+  await reveal($, chosen.flatMap(o => o.paths).filter(p => isRemovableLeftover(p, home)), note)
 }
 
 async function toggleMark($: $, key: string) {
@@ -592,11 +499,6 @@ export const register: Register = on => {
       )
     }
 
-    const showInFinder = (path: string | undefined) => {
-      if (path) void $.process.run(['open', '-R', path]).catch(() => undefined)
-      else void update($, message, () => 'Mark an item to show it in Finder.')
-    }
-
     if (v === 'app') {
       const picked = await read($, app)
       const rows = await read($, leftovers)
@@ -610,23 +512,16 @@ export const register: Register = on => {
           </Box>
           <Box flexDirection="row" flexWrap="wrap" columnGap={2}>
             <Button
-              key="uninstall"
-              label={`Move to Trash (${picks.length}${pickedBytes ? ', ' + humanSize(pickedBytes) : ''})`}
-              hotkey="u"
+              key="reveal"
+              label={`Show in Finder (${picks.length}${pickedBytes ? ', ' + humanSize(pickedBytes) : ''})`}
+              hotkey="f"
               plain
-              onPress={() => void uninstall($)}
+              onPress={() => void revealApp($)}
             />
             <Button key="back" label="All apps" hotkey="b" plain onPress={() => void back($)} />
             <Button key="rescan" label="Rescan" hotkey="r" plain onPress={() => picked && void openApp($, picked)} />
             <Button key="mark-all" label="Mark all" hotkey="a" plain onPress={() => void update($, marked, () => rows.map(l => l.path))} />
             <Button key="clear" label="Unmark" hotkey="c" plain onPress={() => void update($, marked, () => [])} />
-            <Button
-              key="reveal"
-              label="Show in Finder"
-              hotkey="f"
-              plain
-              onPress={() => showInFinder(rows.find(l => picks.includes(l.path))?.path)}
-            />
           </Box>
           {status}
           {rows.map((l, i) =>
@@ -652,23 +547,16 @@ export const register: Register = on => {
           <Text bold>Leftovers of removed apps</Text>
           <Box flexDirection="row" flexWrap="wrap" columnGap={2}>
             <Button
-              key="trash"
-              label={`Move to Trash (${picks.length}${pickedBytes ? ', ' + humanSize(pickedBytes) : ''})`}
-              hotkey="t"
+              key="reveal"
+              label={`Show in Finder (${picks.length}${pickedBytes ? ', ' + humanSize(pickedBytes) : ''})`}
+              hotkey="f"
               plain
-              onPress={() => void trashOrphans($)}
+              onPress={() => void revealOrphans($)}
             />
             <Button key="back" label="All apps" hotkey="b" plain onPress={() => void back($)} />
             <Button key="rescan" label="Rescan" hotkey="r" plain onPress={() => void openOrphans($, true)} />
             <Button key="mark-all" label="Mark all" hotkey="a" plain onPress={() => void update($, marked, () => list.map(o => o.id))} />
             <Button key="clear" label="Unmark" hotkey="c" plain onPress={() => void update($, marked, () => [])} />
-            <Button
-              key="reveal"
-              label="Show in Finder"
-              hotkey="f"
-              plain
-              onPress={() => showInFinder(list.find(o => picks.includes(o.id))?.paths[0])}
-            />
           </Box>
           {status}
           {list.length === 0 && !working ? <Text dimColor>Nothing to show.</Text> : null}

@@ -5,7 +5,7 @@ description: Uninstall a Mac app completely, including the files it leaves in ~/
 
 # Mac uninstall
 
-You help the user remove an app and everything it left behind. You **find and explain**; the user **decides** in the `/mac-uninstaller` pane, which moves what they mark to the Trash. You don't delete anything yourself.
+You help the user remove an app and everything it left behind. You **find and explain**; the user **decides** in the `/mac-uninstaller` pane, which shows what they mark in Finder (`f`), already selected, for them to move to the Trash there. Neither you nor the pane deletes anything.
 
 ## How you and the pane work together
 
@@ -66,7 +66,7 @@ If the app ships its own uninstaller, recommend running that first. It also remo
 
 ## Rules
 
-1. Never run `rm`, `trash`, `mv` to the Trash, or any other delete yourself in the home folder. The pane does that after the user confirms.
+1. Never run `rm`, `trash`, `mv` to the Trash, or any other delete yourself in the home folder. The user moves things to the Trash in Finder, from the pane's `f`.
 2. Never propose the user's own documents, projects or cloud folders, even when an app created them (a `~/Documents/<App>` folder may hold the user's work). Mention them instead.
 3. When it's unclear whether a file belongs to this app or a sibling from the same developer (Office apps share containers), say so in `reason`.
-4. Remind the user to quit the app first, and that the space comes back only when they empty the Trash.
+4. Remind the user to quit the app first, to press `r` in the pane after moving things in Finder, and that the space comes back only when they empty the Trash.

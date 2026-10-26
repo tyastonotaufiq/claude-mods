@@ -2,7 +2,6 @@ import { describe, expect, test } from 'claude-code/testing'
 
 import type { AppInfo, Leftover } from '../types'
 import {
-  explainTrashError,
   extensionStatus,
   findOrphans,
   idsIn,
@@ -19,6 +18,7 @@ import {
   parseInfoPlist,
   parseSystemExtensions,
   PLACES,
+  revealCommand,
   runningExtensionOf,
   strayExtensions,
 } from '../hooks/uninstaller'
@@ -192,10 +192,11 @@ describe('system extensions', () => {
     expect(isContainer(H + '/Library/Caches/com.example.app')).toBe(false)
   })
 
-  test("Finder's -5000 in words", async () => {
-    const raw = "29:108: execution error: Finder got an error: The operation can't be completed because you don't have the necessary permission. (-5000)"
-    expect(explainTrashError(raw)).toBe('macOS refused permission (Finder error -5000).')
-    expect(explainTrashError('something else')).toBe('something else')
+  test('Finder is asked to show the paths, passed as arguments', async () => {
+    const cmd = revealCommand(['/Applications/Slack.app', H + '/Library/Caches/b "q"//'])
+    expect(cmd.slice(0, 4)).toEqual(['osascript', '-l', 'JavaScript', '-e'])
+    expect(cmd.slice(5)).toEqual(['--', '/Applications/Slack.app', H + '/Library/Caches/b "q"'])
+    expect(cmd[4]).toContain('activateFileViewerSelectingURLs')
   })
 })
 
