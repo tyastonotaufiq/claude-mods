@@ -77,6 +77,14 @@ export const TARGETS: readonly Target[] = [
   },
   { rel: '.npm/_cacache', category: 'npm', risk: 'safe', reason: 'npm download cache.' },
   { rel: '.cocoapods/repos', category: 'CocoaPods', risk: 'safe', reason: 'Pod spec repos; fetched again when needed.' },
+  {
+    rel: '',
+    expand: true,
+    only: name => name.endsWith('.hprof'),
+    category: 'Java heap dumps',
+    risk: 'safe',
+    reason: 'Memory snapshot a Java app (often Android Studio) wrote when it crashed; nothing needs it to run.',
+  },
 ]
 
 /**
@@ -126,18 +134,19 @@ export function cleanPath(p: string): string {
 }
 
 /**
- * Whether `path` may be moved to the Trash: inside the home folder, at least
- * two levels deep (never ~/Downloads itself, only things in it), with no `..`,
- * and not in or above a protected place.
+ * Whether `path` may be moved to the Trash: inside the home folder, with no
+ * `..`, and not in or above a protected place. Directly in home, only a file
+ * the caller has checked is one (`isFile`), and never a hidden one: never
+ * ~/Downloads itself, only things in it, and never ~/.zshrc and the like.
  */
-export function isTrashable(path: string, home: string): boolean {
+export function isTrashable(path: string, home: string, isFile = false): boolean {
   const p = cleanPath(path)
   const h = cleanPath(home)
   if (!h || h === '/' || !p.startsWith(h + '/')) return false
   const rel = p.slice(h.length + 1)
   const parts = rel.split('/')
   if (parts.some(x => x === '..' || x === '.' || x === '')) return false
-  if (parts.length < 2) return false
+  if (parts.length < 2 && (!isFile || rel.startsWith('.'))) return false
   if (PROTECTED_EXACT.includes(rel)) return false
   if (PROTECTED_PREFIXES.some(pre => rel === pre || rel.startsWith(pre + '/') || pre.startsWith(rel + '/'))) {
     return false
@@ -169,8 +178,9 @@ export function parseDf(out: string): DiskSpace {
  * Read the findings file Claude writes. Accepts
  * `{ items: [{ path, sizeBytes, category, risk, reason }] }` and drops anything
  * malformed or not trashable, so a bad file can't put a protected path in the list.
+ * `homeFiles` are the regular files directly in home, the only ones there it keeps.
  */
-export function parseFindings(text: string, home: string): CleanItem[] {
+export function parseFindings(text: string, home: string, homeFiles: ReadonlySet<string> = new Set()): CleanItem[] {
   let data: unknown
   try {
     data = JSON.parse(text)
@@ -184,7 +194,7 @@ export function parseFindings(text: string, home: string): CleanItem[] {
     const r = raw as Record<string, unknown>
     if (typeof r?.path !== 'string') continue
     const path = cleanPath(r.path.startsWith('~/') ? home + r.path.slice(1) : r.path)
-    if (!isTrashable(path, home)) continue
+    if (!isTrashable(path, home, homeFiles.has(path))) continue
     const size = Number(r.sizeBytes ?? r.size ?? 0)
     items.push({
       path,

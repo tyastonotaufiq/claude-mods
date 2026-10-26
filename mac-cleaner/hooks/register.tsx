@@ -5,8 +5,8 @@
 //  - Nothing is deleted. Marked items go to the Trash (Put Back works), after
 //    a confirmation that names how many items and how much space.
 //  - Only items in the list can be trashed, and every path is checked again
-//    against isTrashable() right before it's moved: inside ~, two levels deep,
-//    never iCloud, Mail, Photos, Keychains, ~/.ssh and the like.
+//    against isTrashable() right before it's moved: inside ~, never a folder
+//    directly in ~, never iCloud, Mail, Photos, Keychains, ~/.ssh and the like.
 //  - Claude's findings file is validated the same way when it's read.
 
 import { atom, read, update } from 'claude-code'
@@ -68,11 +68,21 @@ async function readDisk($: $, home: string) {
   }
 }
 
+/** The regular files directly in home: the only things there that may be trashed. */
+async function homeFiles($: $, home: string): Promise<Set<string>> {
+  try {
+    const entries = await $.fs.list(home)
+    return new Set(entries.filter(e => e.kind === 'file' && !e.isLink).map(e => home + '/' + e.name))
+  } catch {
+    return new Set()
+  }
+}
+
 async function readFindings($: $, home: string): Promise<CleanItem[]> {
   const path = home + '/' + FINDINGS_REL
   try {
     if (!(await $.fs.exists(path))) return []
-    return parseFindings(await $.fs.read(path), home)
+    return parseFindings(await $.fs.read(path), home, await homeFiles($, home))
   } catch {
     return []
   }
@@ -96,7 +106,7 @@ async function scanPaths($: $, home: string): Promise<Pending[]> {
   const pending: Pending[] = []
   const children: Pending[] = []
   for (const t of TARGETS) {
-    const abs = home + '/' + t.rel
+    const abs = t.rel ? home + '/' + t.rel : home
     if (!(await $.fs.exists(abs))) continue
     if (t.expand) {
       let entries: Awaited<ReturnType<$['fs']['list']>> = []
@@ -114,7 +124,8 @@ async function scanPaths($: $, home: string): Promise<Pending[]> {
     }
   }
 
-  return [...pending, ...children].filter(p => isTrashable(p.path, home))
+  const files = await homeFiles($, home)
+  return [...pending, ...children].filter(p => isTrashable(p.path, home, files.has(p.path)))
 }
 
 /** The size of one folder in bytes, 0 when du can't tell. */
@@ -208,7 +219,8 @@ async function moveToTrash($: $) {
   const list = await read($, items)
   const chosen = list.filter(i => picks.includes(i.path))
   // A summary row stands for many small items: each one is checked and moved on its own
-  const paths = chosen.flatMap(rowPaths).filter(p => isTrashable(p, home))
+  const files = await homeFiles($, home)
+  const paths = chosen.flatMap(rowPaths).filter(p => isTrashable(p, home, files.has(p)))
   if (paths.length === 0) {
     await update($, message, () => 'Mark items first ([ ] beside each row).')
     return

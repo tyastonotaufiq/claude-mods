@@ -14,6 +14,8 @@ function fakeMac(
     findings?: string
     trashFails?: boolean
     smallCaches?: boolean
+    // A 4 GB Android Studio heap dump directly in home, beside a folder named like one
+    heapDump?: boolean
     // Held before du answers for this path, to look at the pane mid-scan
     slow?: { path: string; until: () => Promise<void> }
   } = {},
@@ -28,12 +30,15 @@ function fakeMac(
     ...(opts.smallCaches ? SMALL : []),
   ])
   if (opts.findings) exists.add(H + '/.claude/mac-cleaner/findings.json')
+  if (opts.heapDump) exists.add(H).add(H + '/java_error_in_studio.hprof').add(H + '/notes.hprof')
   const kb: Record<string, number> = {
     [H + '/Library/Caches/com.spotify.client']: 1500 * 1024,
     [H + '/Library/Caches/tiny.app']: 100,
     [H + '/Library/Logs']: 40 * 1024,
     [H + '/.gradle/caches']: 3000 * 1024,
     ...Object.fromEntries(SMALL.map(p => [p, 4 * 1024])),
+    [H + '/java_error_in_studio.hprof']: 4000 * 1024,
+    [H + '/notes.hprof']: 5000 * 1024,
   }
   const caches = ['com.spotify.client', 'tiny.app', ...(opts.smallCaches ? ['s1', 's2', 's3'] : [])]
   const ok = (stdout: string, exitCode = 0) => ({
@@ -41,11 +46,14 @@ function fakeMac(
   })
 
   on('fs.exists', async (_$: unknown, e: { path: string }) => ({ value: exists.has(e.path) }))
+  const entry = (name: string, kind: string) => ({ name, kind, size: 0, mtimeMs: 0, isLink: false })
   on('fs.list', async (_$: unknown, e: { path: string }) => ({
     value:
       e.path === H + '/Library/Caches'
-        ? caches.map(name => ({ name, kind: 'dir', size: 0, mtimeMs: 0, isLink: false }))
-        : [],
+        ? caches.map(name => entry(name, 'dir'))
+        : e.path === H && opts.heapDump
+          ? [entry('java_error_in_studio.hprof', 'file'), entry('notes.hprof', 'dir'), entry('Downloads', 'dir')]
+          : [],
   }))
   on('fs.read', async () => ({ value: opts.findings ?? '' }))
   on('process.run', async (_$: unknown, e: { argv: readonly string[] }) => {
@@ -113,6 +121,28 @@ for (const surface of ['terminal', 'desktop'] as const) {
     expect(calls.some(c => c[0] === 'rm')).toBe(false)
     expect(await ui.find({ text: /Moved 1 item\(s\), 2\.9 GB, to the Trash/ })).toBeDefined()
     expect((await ui.find({ key: 'name-0' }))?.text).toMatch(/com\.spotify\.client/)
+    await ui.unmount()
+  })
+
+  test(`${surface}: finds a heap dump directly in home and trashes it, but not a folder named like one`, async ($, on) => {
+    const calls: string[][] = []
+    fakeMac(on, calls, { heapDump: true })
+    mock.store(on)
+    mock.env(on, { HOME: H })
+    mock.clock(on, { now: 1 })
+    on('tool.call', { tool: 'AskUserQuestion' }, async (_$: unknown, e: any) => ({
+      result: { questions: e.questions, answers: { [e.questions[0].question]: 'Move to Trash' } },
+    }) as never)
+
+    const ui = await mount($, surface)
+    await ui.press({ key: 'scan' })
+    expect((await ui.find({ key: 'name-0' }))?.text).toMatch(/~\/java_error_in_studio\.hprof/)
+    expect(await ui.find({ text: /notes\.hprof/ })).toBeUndefined()
+
+    await ui.press({ key: 'mark-0' })
+    await ui.press({ key: 'trash' })
+    const trashCall = calls.find(c => c[0] === 'osascript' || c[0] === '/usr/bin/trash')
+    expect(trashCall?.join(' ')).toContain(H + '/java_error_in_studio.hprof')
     await ui.unmount()
   })
 

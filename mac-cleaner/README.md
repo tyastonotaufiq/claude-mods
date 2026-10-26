@@ -2,7 +2,7 @@
 
 A Claude Code plugin that shows what's using space on your Mac and moves what you choose to the Trash, without leaving Claude Code.
 
-- **`/mac-cleaner`** opens a pane that scans the usual space hogs (app caches, logs, Xcode, Gradle, Android emulators and system images, npm, CocoaPods), lists them by size with a reason for each, and moves what you mark to the Trash.
+- **`/mac-cleaner`** opens a pane that scans the usual space hogs (app caches, logs, Xcode, Gradle, Android emulators and system images, npm, CocoaPods, and Java heap dumps like Android Studio's `java_error_in_studio.hprof` in your home folder), lists them by size with a reason for each, and moves what you mark to the Trash.
 - **The `mac-storage` skill** lets Claude dig deeper: "why is my disk full?", "find big old files", "which old projects still have node_modules?". Claude adds what it finds to the pane, with its reasoning, and you decide there.
 
 ![The /mac-cleaner pane beside a Claude Code session, listing caches under "Safe to remove" by size](./docs/screenshot.png)
@@ -68,7 +68,7 @@ Items are grouped into **Safe to remove** (rebuilt automatically, like caches an
 
 - **Nothing is deleted.** Marked items go to the Trash, where Put Back works. You get the space back when you empty the Trash.
 - Every move asks first, naming the item count and size.
-- Only paths inside your home folder, at least two levels deep, can be trashed. iCloud Drive, Mail, Messages, the Photos library, Keychains, `~/Library/Containers` and `~/.ssh` are always refused, including anything Claude proposes.
+- Only paths inside your home folder can be trashed, and never a folder directly in it (like `~/Downloads`) or a hidden file there (like `~/.zshrc`). iCloud Drive, Mail, Messages, the Photos library, Keychains, `~/Library/Containers` and `~/.ssh` are always refused, including anything Claude proposes.
 - Every move is logged in the plugin's store (last 200).
 - The skill tells Claude never to delete anything itself and to suggest tools like `brew cleanup` instead of trashing their folders.
 

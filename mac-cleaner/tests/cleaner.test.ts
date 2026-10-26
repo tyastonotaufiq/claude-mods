@@ -34,6 +34,13 @@ describe('what may be trashed', () => {
     expect(isTrashable(H + '/.gradle', H)).toBe(false)
   })
 
+  test('a file directly in home only when the caller checked it is one, and never a hidden one', async () => {
+    expect(isTrashable(H + '/java_error_in_studio.hprof', H)).toBe(false)
+    expect(isTrashable(H + '/java_error_in_studio.hprof', H, true)).toBe(true)
+    expect(isTrashable(H + '/.zshrc', H, true)).toBe(false)
+    expect(isTrashable(H + '/.Trash', H, true)).toBe(false)
+  })
+
   test('never iCloud, Mail, Photos, keys or anything outside home', async () => {
     expect(isTrashable(H + '/Library/Mobile Documents/com~apple~CloudDocs/x', H)).toBe(false)
     expect(isTrashable(H + '/Library/Mail/V10', H)).toBe(false)
@@ -78,6 +85,11 @@ describe('parsing', () => {
     expect(items[1]?.risk).toBe('review')
     expect(items[1]?.size).toBe(0)
     expect(parseFindings('not json', H)).toEqual([])
+
+    // A file directly in home is kept only when it's one of home's regular files
+    const dump = JSON.stringify({ items: [{ path: '~/java_pid1.hprof', sizeBytes: 4e9 }, { path: '~/Documents' }] })
+    expect(parseFindings(dump, H)).toEqual([])
+    expect(parseFindings(dump, H, new Set([H + '/java_pid1.hprof'])).map(i => i.path)).toEqual([H + '/java_pid1.hprof'])
   })
 })
 
