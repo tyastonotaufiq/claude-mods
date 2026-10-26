@@ -4,9 +4,14 @@
     "name": "tyastonotaufiq"
   },
   "metadata": {
-    "description": "Claude Code mods: ADB Explorer for Android files, Mac Cleaner for disk space, Mac Uninstaller for removing apps completely, and English Improver for writing more natural English"
+    "description": "Claude Code mods: English Improver for writing more natural English, ADB Explorer for Android files, Mac Cleaner for disk space, and Mac Uninstaller for removing apps completely"
   },
   "plugins": [
+    {
+      "name": "english-improver",
+      "source": "./english-improver",
+      "description": "After each prompt, shows how a native speaker would write it, with short notes"
+    },
     {
       "name": "adb-explorer",
       "source": "./adb-explorer",
@@ -21,11 +26,6 @@
       "name": "mac-uninstaller",
       "source": "./mac-uninstaller",
       "description": "Uninstall Mac apps with the files they leave behind, from a /mac-uninstaller pane"
-    },
-    {
-      "name": "english-improver",
-      "source": "./english-improver",
-      "description": "After each prompt, shows how a native speaker would write it, with short notes"
     }
   ]
 }
