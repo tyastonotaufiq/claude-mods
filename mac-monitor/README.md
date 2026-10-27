@@ -7,6 +7,8 @@ A Claude Code plugin that shows how hard your Mac is working, without leaving Cl
 
 Ask Claude about what you see ("what's using my memory?", "why is my Mac slow?") and it can dig in with the same commands.
 
+![The /mac-monitor pane beside a Claude Code session, with CPU, GPU, memory under pressure, disk, battery, network and the busiest processes, and the line above the prompt](./docs/screenshot.png)
+
 ## Requirements
 
 - Claude Code v2.1.287 or later, in the terminal or the Code tab of the Claude Desktop app
@@ -89,6 +91,7 @@ mac-monitor/
 │   ├── hooks.json
 │   ├── register.tsx     the line, the pane, /mac-monitor, sampling every 5 s
 │   └── monitor.ts       reading each command's output into numbers (no I/O)
+├── docs/screenshot.png
 ├── types/index.d.ts
 └── tests/               run with: claude plugin test .
 ```
