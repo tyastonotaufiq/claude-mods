@@ -7,6 +7,8 @@ description: Find what's using disk space on the user's Mac and propose what to 
 
 You find what's using space on the user's Mac and explain what can go. You **propose**; the user **decides** in the `/mac-cleaner` pane, which moves what they mark to the Trash. You don't delete anything yourself.
 
+This is for macOS only. On Windows or Linux, `/mac-cleaner` only replies that it needs macOS: don't mention the pane or findings.json; just help directly with that system's own tools.
+
 ## How you and the pane work together
 
 - The pane runs its own quick scan of well-known caches (app caches, logs, Xcode, Gradle, emulators, npm, CocoaPods, `.hprof` heap dumps directly in `~`). Don't repeat that work; look for what it can't judge.

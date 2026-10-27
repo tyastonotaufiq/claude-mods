@@ -7,6 +7,8 @@ description: Uninstall a Mac app completely, including the files it leaves in ~/
 
 You help the user remove an app and everything it left behind. You **find and explain**; the user **decides** in the `/mac-uninstaller` pane, which shows what they mark in Finder (`f`), already selected, for them to move to the Trash there. Neither you nor the pane deletes anything.
 
+This is for macOS only. On Windows or Linux, `/mac-uninstaller` only replies that it needs macOS: don't mention the pane or findings.json; just help directly with that system's own tools.
+
 ## How you and the pane work together
 
 - `/mac-uninstaller` lists installed apps. Picking one shows the app and its files in the usual `~/Library` places (Application Support, Caches, Preferences, Containers, Saved Application State, HTTPStorages, WebKit, LaunchAgents…). It marks files named after the app's bundle ID, and lists name matches and shared group containers unmarked. `/mac-uninstaller <app name>` opens that app directly.

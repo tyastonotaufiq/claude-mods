@@ -1,6 +1,6 @@
 {
   "name": "mac-cleaner",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Find what's using space on your Mac and move the junk to the Trash, from a /mac-cleaner pane inside Claude Code",
   "author": { "name": "tyastono" },
   "types": "./types/index.d.ts"
