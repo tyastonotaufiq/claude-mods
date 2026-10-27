@@ -65,6 +65,11 @@ let paneOpen = false
 /** How many processes (plutil, du, mdfind) run at once. */
 const JOBS = 4
 
+/** Whether this is a Mac: every macOS has this file, Windows and Linux don't. */
+async function isMac($: $): Promise<boolean> {
+  return $.fs.exists('/System/Library/CoreServices/SystemVersion.plist')
+}
+
 async function homeOf($: $): Promise<string> {
   return ((await $.env.get('HOME')) ?? '').replace(/\/+$/, '')
 }
@@ -413,6 +418,7 @@ export const register: Register = on => {
   })
 
   on('command.run', { command: 'mac-uninstaller' }, async ($, e) => {
+    if (!(await isMac($))) return { text: 'Mac Uninstaller needs macOS.' }
     const placed = await $.ui.open({ id: PANE, title: 'Mac Uninstaller', focus: true, closeOnEscape: true })
     paneOpen = true
     void start($, e.args)

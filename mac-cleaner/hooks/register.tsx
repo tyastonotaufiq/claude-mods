@@ -41,6 +41,11 @@ type $ = EngineInterface
 
 let paneOpen = false
 
+/** Whether this is a Mac: every macOS has this file, Windows and Linux don't. */
+async function isMac($: $): Promise<boolean> {
+  return $.fs.exists('/System/Library/CoreServices/SystemVersion.plist')
+}
+
 async function homeOf($: $): Promise<string> {
   return ((await $.env.get('HOME')) ?? '').replace(/\/+$/, '')
 }
@@ -312,6 +317,7 @@ export const register: Register = on => {
   })
 
   on('command.run', { command: 'mac-cleaner' }, async $ => {
+    if (!(await isMac($))) return { text: 'Mac Cleaner needs macOS.' }
     const placed = await $.ui.open({ id: PANE, title: 'Mac Cleaner', focus: true, closeOnEscape: true })
     paneOpen = true
     void scan($)

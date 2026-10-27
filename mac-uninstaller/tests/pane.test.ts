@@ -248,3 +248,13 @@ for (const surface of ['terminal', 'desktop'] as const) {
     await ui.unmount()
   })
 }
+
+test('on Windows or Linux, says it needs macOS and opens no pane', async ($, on) => {
+  const opened: unknown[] = []
+  on('fs.exists', async () => ({ value: false }))
+  on('ui.open', async (_$: unknown, e: unknown) => (opened.push(e), { value: { isPlaced: true } }) as never)
+
+  const r = await $.command.run({ command: 'mac-uninstaller' } as never)
+  expect(r).toMatchObject({ text: 'Mac Uninstaller needs macOS.' })
+  expect(opened).toHaveLength(0)
+})

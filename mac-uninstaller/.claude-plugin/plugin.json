@@ -1,6 +1,6 @@
 {
   "name": "mac-uninstaller",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Uninstall Mac apps completely, with the files they leave in ~/Library, from a /mac-uninstaller pane inside Claude Code",
   "author": { "name": "tyastono" },
   "types": "./types/index.d.ts"
