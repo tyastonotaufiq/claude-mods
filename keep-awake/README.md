@@ -6,6 +6,8 @@ A Claude Code plugin that keeps your Mac from going to sleep, without leaving Cl
 
 It uses macOS's own `caffeinate`, so it needs nothing installed and no permissions.
 
+![The /keep-awake pane beside a Claude Code session, keeping the Mac awake until stopped, with "For a while" marked on](./docs/screenshot.png)
+
 ## Do you need it?
 
 - **While Claude works, you don't.** Claude Code already keeps the Mac awake while Claude is busy on a task: in the terminal by itself, and in the Desktop app with Settings › Claude Code › **Keep computer awake while Claude works**.
@@ -80,6 +82,7 @@ keep-awake/
 │   ├── hooks.json
 │   ├── register.tsx     the pane, /keep-awake, running and stopping caffeinate
 │   └── awake.ts         caffeinate's arguments, running apps, typed times (no I/O)
+├── docs/screenshot.png
 ├── types/index.d.ts
 └── tests/               run with: claude plugin test .
 ```
