@@ -1,5 +1,5 @@
-// keep-awake: keeps this Mac from sleeping with macOS's own caffeinate, opened
-// with /keep-awake: until you stop it, for a while, until a time, or while an
+// mac-caffeinater: keeps this Mac from sleeping with macOS's own caffeinate, opened
+// with /mac-caffeinater: until you stop it, for a while, until a time, or while an
 // app runs. (While Claude works, Claude Code keeps the Mac awake by itself.)
 //
 // Each caffeinate runs as `sh -c 'echo $$; exec caffeinate …'`, so its first
@@ -12,14 +12,14 @@ import type { EngineInterface, Register } from 'claude-code'
 import type { RunningApp, Session } from '../types'
 import { caffeinateArgs, clockLabel, describe, parseApps, parseClockTime, PRESETS } from './awake'
 
-const PANE = 'keep-awake'
+const PANE = 'mac-caffeinater'
 
-const session = atom({ plugin: 'keep-awake', key: 'session' } as const, null as Session | null)
-const displaySleep = atom({ plugin: 'keep-awake', key: 'displaySleep' } as const, false)
-const view = atom({ plugin: 'keep-awake', key: 'view' } as const, 'main' as 'main' | 'apps')
-const apps = atom({ plugin: 'keep-awake', key: 'apps' } as const, [] as RunningApp[])
-const busy = atom({ plugin: 'keep-awake', key: 'busy' } as const, '')
-const message = atom({ plugin: 'keep-awake', key: 'message' } as const, '')
+const session = atom({ plugin: 'mac-caffeinater', key: 'session' } as const, null as Session | null)
+const displaySleep = atom({ plugin: 'mac-caffeinater', key: 'displaySleep' } as const, false)
+const view = atom({ plugin: 'mac-caffeinater', key: 'view' } as const, 'main' as 'main' | 'apps')
+const apps = atom({ plugin: 'mac-caffeinater', key: 'apps' } as const, [] as RunningApp[])
+const busy = atom({ plugin: 'mac-caffeinater', key: 'busy' } as const, '')
+const message = atom({ plugin: 'mac-caffeinater', key: 'message' } as const, '')
 
 type $ = EngineInterface
 type Child = { stop: () => Promise<void> }
@@ -149,12 +149,12 @@ export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     try {
       await $.command.register({
-        name: 'keep-awake',
+        name: 'mac-caffeinater',
         description: 'Keep this Mac awake for a while, until a time, or while an app runs',
         immediate: true,
       })
     } catch (err) {
-      $.ui.log('/keep-awake could not be registered: ' + errorText(err))
+      $.ui.log('/mac-caffeinater could not be registered: ' + errorText(err))
     }
     const savedDisplay = await $.store.get('displaySleep')
     await update($, displaySleep, () => savedDisplay === true)
@@ -173,10 +173,10 @@ export const register: Register = on => {
     return next(e)
   })
 
-  on('command.run', { command: 'keep-awake' }, async $ => {
-    if (!(await isMac($))) return { text: 'Keep Awake needs macOS.' }
-    const placed = await $.ui.open({ id: PANE, title: 'Keep Awake', focus: true, closeOnEscape: true })
-    return placed.isPlaced ? {} : { text: 'Keep Awake is ready; widen the terminal to see the pane.' }
+  on('command.run', { command: 'mac-caffeinater' }, async $ => {
+    if (!(await isMac($))) return { text: 'Mac Caffeinater needs macOS.' }
+    const placed = await $.ui.open({ id: PANE, title: 'Mac Caffeinater', focus: true, closeOnEscape: true })
+    return placed.isPlaced ? {} : { text: 'Mac Caffeinater is ready; widen the terminal to see the pane.' }
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
@@ -227,7 +227,7 @@ export const register: Register = on => {
     return (
       <Box flexDirection="column">
         <Box flexDirection="row" columnGap={2}>
-          <Text bold>Keep Awake</Text>
+          <Text bold>Mac Caffeinater</Text>
           {s ? (
             <Text color="green">{statusLine(s, now)}</Text>
           ) : (

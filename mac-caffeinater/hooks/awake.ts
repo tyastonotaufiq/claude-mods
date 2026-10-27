@@ -1,4 +1,4 @@
-// keep-awake: the parts that need no engine (caffeinate's arguments, the
+// mac-caffeinater: the parts that need no engine (caffeinate's arguments, the
 // running apps from lsappinfo, times typed by the person), kept apart to be tested.
 
 import type { RunningApp, Session } from '../types'

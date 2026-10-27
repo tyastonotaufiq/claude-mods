@@ -4,7 +4,7 @@
     "name": "tyastonotaufiq"
   },
   "metadata": {
-    "description": "Claude Code mods: English Improver for writing more natural English, ADB Explorer for Android files, Mac Cleaner for disk space, Mac Uninstaller for removing apps completely, Keep Awake for keeping your Mac from sleeping, and Mac Monitor for CPU, memory, disk and battery"
+    "description": "Claude Code mods: English Improver for writing more natural English, ADB Explorer for Android files, Mac Cleaner for disk space, Mac Uninstaller for removing apps completely, Mac Caffeinater for keeping your Mac from sleeping, and Mac Monitor for CPU, memory, disk and battery"
   },
   "plugins": [
     {
@@ -28,9 +28,9 @@
       "description": "Uninstall Mac apps with the files they leave behind, from a /mac-uninstaller pane"
     },
     {
-      "name": "keep-awake",
-      "source": "./keep-awake",
-      "description": "Keep your Mac awake for a while, until a time, or while an app runs, from a /keep-awake pane"
+      "name": "mac-caffeinater",
+      "source": "./mac-caffeinater",
+      "description": "Keep your Mac awake for a while, until a time, or while an app runs, from a /mac-caffeinater pane"
     },
     {
       "name": "mac-monitor",

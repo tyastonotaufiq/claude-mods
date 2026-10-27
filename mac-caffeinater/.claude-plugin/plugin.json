@@ -1,0 +1,7 @@
+{
+  "name": "mac-caffeinater",
+  "version": "0.1.0",
+  "description": "Keep your Mac awake for a while, until a time, or while an app runs, from a /mac-caffeinater pane inside Claude Code",
+  "author": { "name": "tyastono" },
+  "types": "./types/index.d.ts"
+}

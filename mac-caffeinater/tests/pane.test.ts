@@ -71,7 +71,7 @@ function fakeMac(on: any, opts: { mac?: boolean } = {}): Fake {
 }
 
 const PANE = {
-  title: 'Keep Awake',
+  title: 'Mac Caffeinater',
   isFocused: true,
   bodyColumns: 80,
   placement: 'dock' as const,
@@ -81,7 +81,7 @@ const PANE = {
 
 async function start($: any, surface: 'terminal' | 'desktop') {
   await $.session.start({ cwd: '/', surface, isInteractive: true })
-  return $.ui.mount({ plugin: 'keep-awake', surface, component: 'Pane', requestId: 'keep-awake', props: PANE as never })
+  return $.ui.mount({ plugin: 'mac-caffeinater', surface, component: 'Pane', requestId: 'mac-caffeinater', props: PANE as never })
 }
 
 for (const surface of ['terminal', 'desktop'] as const) {
@@ -178,8 +178,8 @@ test('on Windows or Linux, says it needs macOS and opens no pane', async ($, on)
   const fake = fakeMac(on, { mac: false })
   await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
 
-  const r = await $.command.run({ command: 'keep-awake' } as never)
-  expect(r).toMatchObject({ text: 'Keep Awake needs macOS.' })
+  const r = await $.command.run({ command: 'mac-caffeinater' } as never)
+  expect(r).toMatchObject({ text: 'Mac Caffeinater needs macOS.' })
   expect(fake.opened).toHaveLength(0)
   expect(fake.started).toEqual([])
 })
