@@ -1,0 +1,332 @@
+<title>Note Taker</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400&display=swap">
+<style>
+/* Layout: one narrow column, like a pad: the writing box on top, notes stacked below, newest first */
+:root {
+  --bg: #f6f7f9;
+  --paper: #ffffff;
+  --ink: #1d2430;
+  --muted: #667085;
+  --line: #dde1e8;
+  --accent: #f2c230;      /* highlighter yellow */
+  --accent-ink: #3b2f00;
+  --danger: #b42318;
+  --focus: #2f6fdf;
+  --display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --body: "IBM Plex Sans", -apple-system, "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14171c; --paper: #1c2027; --ink: #e6e9ee; --muted: #98a2b3; --line: #2c323c;
+    --accent: #e9b823; --accent-ink: #241c00; --danger: #f97066; --focus: #6aa0ff;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #14171c; --paper: #1c2027; --ink: #e6e9ee; --muted: #98a2b3; --line: #2c323c;
+  --accent: #e9b823; --accent-ink: #241c00; --danger: #f97066; --focus: #6aa0ff;
+  color-scheme: dark;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font: 15px/1.55 var(--body);
+}
+.wrap {
+  max-width: 680px;
+  margin: 0 auto;
+  padding-block: 28px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+h1 {
+  margin: 0;
+  font: 600 28px/1.1 var(--display);
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+h1 span { background: linear-gradient(transparent 58%, var(--accent) 58%, var(--accent) 92%, transparent 92%); padding: 0 2px; }
+.count { font: 12px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+
+textarea, input[type="search"] {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+textarea { resize: vertical; min-height: 84px; display: block; }
+textarea:focus-visible, input:focus-visible, button:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+
+.compose { display: flex; flex-direction: column; gap: 8px; }
+.row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.row .hint { margin-right: auto; font-size: 12px; color: var(--muted); }
+
+button {
+  font: 500 14px var(--body);
+  border-radius: 6px;
+  padding: 6px 14px;
+  cursor: pointer;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--ink);
+}
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+button.danger { color: var(--danger); }
+button:disabled { opacity: .5; cursor: default; }
+
+.notice { font-size: 14px; color: var(--muted); }
+.notice.error { color: var(--danger); }
+
+.notes { display: flex; flex-direction: column; gap: 10px; list-style: none; margin: 0; padding: 0; }
+.note {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.note .text { white-space: pre-wrap; overflow-wrap: anywhere; cursor: text; }
+.note .text b { font-weight: 600; }
+.note .meta { display: flex; gap: 12px; align-items: center; font: 12px var(--mono); color: var(--muted); }
+.note .meta button { font-size: 12px; padding: 2px 8px; }
+.note .meta .spacer { flex: 1; }
+.empty {
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  padding: 24px 16px;
+  text-align: center;
+  color: var(--muted);
+}
+.empty strong { display: block; color: var(--ink); font-weight: 600; margin-bottom: 4px; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1><span>Note Taker</span></h1>
+    <div class="count" id="count"></div>
+  </header>
+
+  <form class="compose" id="compose">
+    <label for="draft" hidden>New note</label>
+    <textarea id="draft" placeholder="Write a note…" disabled></textarea>
+    <div class="row">
+      <span class="hint">The first line is the title. ⌘/Ctrl + Enter saves.</span>
+      <button type="submit" class="primary" id="save" disabled>Save note</button>
+    </div>
+  </form>
+
+  <input type="search" id="search" placeholder="Search notes" aria-label="Search notes">
+  <div class="notice" id="notice">Opening your notes…</div>
+  <ul class="notes" id="notes"></ul>
+</div>
+
+<script>
+const $ = id => document.getElementById(id)
+const els = { draft: $('draft'), save: $('save'), compose: $('compose'), search: $('search'), notice: $('notice'), list: $('notes'), count: $('count') }
+
+let notes = []           // [{ id, text, createdAt, updatedAt }], newest change first
+let col = null           // this viewer's own notes: data/users/<id>
+let editing = null       // id of the note being edited
+let confirming = null    // id of the note waiting for delete confirmation
+let canWrite = true
+
+function setNotice(text, isError) {
+  els.notice.textContent = text
+  els.notice.classList.toggle('error', !!isError)
+  els.notice.hidden = !text
+}
+
+function when(ms) {
+  const d = new Date(ms), now = new Date()
+  const sameDay = d.toDateString() === now.toDateString()
+  const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  if (sameDay) return 'Today ' + time
+  const opts = d.getFullYear() === now.getFullYear() ? { day: 'numeric', month: 'short' } : { day: 'numeric', month: 'short', year: 'numeric' }
+  return d.toLocaleDateString([], opts) + ' ' + time
+}
+
+function noteText(note) {
+  const div = document.createElement('div')
+  div.className = 'text'
+  const nl = note.text.indexOf('\n')
+  const b = document.createElement('b')
+  b.textContent = nl < 0 ? note.text : note.text.slice(0, nl)
+  div.append(b)
+  if (nl >= 0) div.append(document.createTextNode(note.text.slice(nl)))
+  div.title = canWrite ? 'Click to edit' : ''
+  div.addEventListener('click', () => { if (canWrite) { editing = note.id; confirming = null; render() } })
+  return div
+}
+
+function button(label, cls, onClick) {
+  const b = document.createElement('button')
+  b.type = 'button'
+  b.textContent = label
+  if (cls) b.className = cls
+  b.addEventListener('click', onClick)
+  return b
+}
+
+function render() {
+  const q = els.search.value.trim().toLowerCase()
+  const shown = q ? notes.filter(n => n.text.toLowerCase().includes(q)) : notes
+  els.count.textContent = notes.length === 1 ? '1 note' : notes.length + ' notes'
+  els.list.replaceChildren()
+
+  if (col && !notes.length) {
+    const li = document.createElement('li')
+    li.className = 'empty'
+    li.innerHTML = '<strong>No notes yet</strong>Write your first one above. In Claude Code, the Note Taker mod shows these same notes in its pane.'
+    els.list.append(li)
+    return
+  }
+  if (q && !shown.length) {
+    const li = document.createElement('li')
+    li.className = 'empty'
+    li.textContent = 'No notes contain "' + els.search.value.trim() + '".'
+    els.list.append(li)
+    return
+  }
+
+  for (const note of shown) {
+    const li = document.createElement('li')
+    li.className = 'note'
+    if (editing === note.id) {
+      const ta = document.createElement('textarea')
+      ta.id = 'edit-' + note.id
+      ta.value = note.text
+      ta.setAttribute('aria-label', 'Edit note')
+      ta.addEventListener('keydown', e => {
+        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); saveEdit(note, ta.value) }
+        if (e.key === 'Escape') { editing = null; render() }
+      })
+      const row = document.createElement('div')
+      row.className = 'row'
+      const spacer = document.createElement('span')
+      spacer.className = 'hint'
+      row.append(spacer, button('Cancel', '', () => { editing = null; render() }), button('Save', 'primary', () => saveEdit(note, ta.value)))
+      li.append(ta, row)
+      els.list.append(li)
+      queueMicrotask(() => { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length) })
+      continue
+    }
+    const meta = document.createElement('div')
+    meta.className = 'meta'
+    const t = document.createElement('span')
+    t.textContent = when(note.updatedAt)
+    const spacer = document.createElement('span')
+    spacer.className = 'spacer'
+    meta.append(t, spacer)
+    if (canWrite) {
+      if (confirming === note.id) {
+        const ask = document.createElement('span')
+        ask.textContent = 'Delete this note?'
+        meta.append(ask, button('Keep', '', () => { confirming = null; render() }), button('Delete', 'danger', () => remove(note)))
+      } else {
+        meta.append(button('Delete', 'danger', () => { confirming = note.id; render() }))
+      }
+    }
+    li.append(noteText(note), meta)
+    els.list.append(li)
+  }
+}
+
+function newId() {
+  return 'n' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8)
+}
+
+async function add() {
+  const text = els.draft.value.trim()
+  if (!text || !col) return
+  els.save.disabled = true
+  const now = Date.now()
+  try {
+    await col.doc(newId()).set({ text, createdAt: now, updatedAt: now })
+    els.draft.value = ''
+    setNotice('')
+  } catch (e) {
+    failed(e)
+  } finally {
+    els.save.disabled = !canWrite
+  }
+}
+
+async function saveEdit(note, value) {
+  const text = value.trim()
+  editing = null
+  if (!text) { confirming = note.id; render(); return }
+  if (text === note.text) { render(); return }
+  render()
+  try {
+    await col.doc(note.id).set({ text, createdAt: note.createdAt, updatedAt: Date.now() })
+  } catch (e) {
+    failed(e)
+  }
+}
+
+async function remove(note) {
+  confirming = null
+  try {
+    await col.doc(note.id).delete()
+  } catch (e) {
+    failed(e)
+  }
+}
+
+function failed(e) {
+  if (e && e.code === 'invalid_argument') { readOnly(); return }
+  if (e && e.code === 'quota_exceeded') { setNotice('Your notebook is full. Delete some notes to add new ones.', true); return }
+  setNotice('That didn\'t save: ' + ((e && e.message) || 'try again in a moment.'), true)
+}
+
+function readOnly() {
+  canWrite = false
+  els.draft.disabled = true
+  els.save.disabled = true
+  setNotice('You can read these notes but not change them here.')
+  render()
+}
+
+els.compose.addEventListener('submit', e => { e.preventDefault(); add() })
+els.draft.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); add() }
+})
+els.search.addEventListener('input', render)
+
+;(async () => {
+  const [db, user] = await Promise.all([window.claude.use('db'), window.claude.use('user')])
+  const uid = user ? await user.id() : null
+  if (!db || !uid) {
+    setNotice('You can\'t keep notes on this page. Notes are saved only on your own Note Taker page, while you\'re signed in to claude.ai.')
+    return
+  }
+  col = db.collection('data/users/' + uid)
+  const writable = user.can ? await user.can('data.write') : null
+  if (writable === false) readOnly()
+  else { els.draft.disabled = false; els.save.disabled = false }
+
+  col.orderBy('updatedAt', 'desc').limit(1000).onSnapshot(snap => {
+    notes = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(n => typeof n.text === 'string')
+    if (canWrite) setNotice('')
+    render()
+  }, e => {
+    setNotice('Your notes stopped updating. Reload the page to see the latest.', true)
+  })
+})()
+</script>

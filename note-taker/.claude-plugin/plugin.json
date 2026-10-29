@@ -1,0 +1,7 @@
+{
+  "name": "note-taker",
+  "version": "0.1.0",
+  "description": "Keep notes in a /note-taker pane inside Claude Code, the same notes as on your Note Taker page on claude.ai, and ask Claude to add or find them",
+  "author": { "name": "tyastono" },
+  "types": "./types/index.d.ts"
+}

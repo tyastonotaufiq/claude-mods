@@ -4,7 +4,7 @@
     "name": "tyastonotaufiq"
   },
   "metadata": {
-    "description": "Claude Code mods: English Improver for writing more natural English, ADB Explorer for Android files, Mac Cleaner for disk space, Mac Uninstaller for removing apps completely, Mac Caffeinater for keeping your Mac from sleeping, and Mac Monitor for CPU, memory, disk and battery"
+    "description": "Claude Code mods: English Improver for writing more natural English, ADB Explorer for Android files, Mac Cleaner for disk space, Mac Uninstaller for removing apps completely, Mac Caffeinater for keeping your Mac from sleeping, Mac Monitor for CPU, memory, disk and battery, and Note Taker for notes you can also read on claude.ai"
   },
   "plugins": [
     {
@@ -36,6 +36,11 @@
       "name": "mac-monitor",
       "source": "./mac-monitor",
       "description": "Your Mac's CPU, memory, disk and battery in a line above the prompt, with details in a /mac-monitor pane"
+    },
+    {
+      "name": "note-taker",
+      "source": "./note-taker",
+      "description": "Keep notes in a /note-taker pane, the same notes as on your own Note Taker page on claude.ai"
     }
   ]
 }
