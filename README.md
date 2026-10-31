@@ -66,11 +66,11 @@ Mods run inside Claude Code with your permissions and aren't sandboxed. The mods
 
 ## Develop
 
-```bash
-claude --plugin-dir ./adb-explorer      # load from the folder; reloads on save
-claude plugin validate ./adb-explorer
-claude plugin test ./adb-explorer
-```
+Run these on a mod's folder, for example `./adb-explorer`:
+
+- `claude --plugin-dir ./adb-explorer` starts Claude Code with the mod loaded straight from the folder, without installing it. When you save a change, the mod reloads in that session.
+- `claude plugin validate ./adb-explorer` checks the manifest and the hooks code the way Claude Code will load them, and reports anything it would refuse.
+- `claude plugin test ./adb-explorer` runs the tests in the mod's `tests/` folder.
 
 ## License
 
