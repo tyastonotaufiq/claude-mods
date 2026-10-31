@@ -108,3 +108,53 @@ export function parseReply(reply: string, original: string): Suggestion | undefi
 export function noteLine(n: Note): string {
   return `${n.from} → ${n.to}` + (n.why ? ` · ${n.why}` : '')
 }
+
+/**
+ * The person's own English Improver page in the Artifact tool's list, if they
+ * have one. Its rows read `- (mine) <title> — <url> — updated <date>`.
+ */
+export function findPage(list: string): string | undefined {
+  return /^- \(mine\) English Improver — (https:\/\/claude\.ai\/\S*artifact\/\S+) — /m.exec(list)?.[1]
+}
+
+/** The new page's link in the Artifact tool's answer to a publish: `Published <file> at <url> (Version 1, …)`. */
+export function publishedUrl(answer: string): string | undefined {
+  return / at (https:\/\/claude\.ai\/\S*artifact\/[A-Za-z0-9-]+)/.exec(answer)?.[1]
+}
+
+/**
+ * The JSON in an answer from the claude-artifacts connector, which may start
+ * with a notice before it (when the answer lists something others wrote).
+ */
+function jsonIn(answer: string): unknown {
+  return JSON.parse(answer.slice(answer.indexOf('{')))
+}
+
+/**
+ * The person's own English Improver page in the claude-artifacts connector's
+ * list_artifacts answer: `{"artifacts": [{title, rel, url, soft_deleted?}]}`.
+ */
+export function findPageInJson(answer: string): string | undefined {
+  try {
+    const list = (jsonIn(answer) as { artifacts?: Record<string, unknown>[] }).artifacts ?? []
+    const page = list.find(a => a.title === 'English Improver' && a.rel === 'mine' && !a.soft_deleted && typeof a.url === 'string')
+    return page?.url as string | undefined
+  } catch {
+    return undefined
+  }
+}
+
+/** The first artifact slug (a UUID) in an answer from the claude-artifacts connector. */
+export function slugIn(answer: string): string | undefined {
+  return /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/.exec(answer)?.[0]
+}
+
+/** The `version` in the connector's read_declaration answer. */
+export function versionIn(answer: string): string | undefined {
+  try {
+    const v = (jsonIn(answer) as { version?: unknown }).version
+    return typeof v === 'string' ? v : undefined
+  } catch {
+    return undefined
+  }
+}

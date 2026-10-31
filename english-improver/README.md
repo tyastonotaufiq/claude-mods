@@ -46,7 +46,11 @@ What isn't checked:
 
 ## Checking other writing
 
-The mod only checks prompts you send in Claude Code. For anything else, like an email, a Slack message or a PR description, use the [English Improver page](https://claude.ai/artifact/FhbjSt7KzqDwuqgu6eQsvD) on claude.ai: paste your text, press **Improve**, and copy the native version. It gives the same kind of notes. It needs you to be signed in to claude.ai, and each check counts toward your own Claude usage.
+The mod only checks prompts you send in Claude Code. For anything else, like an email, a Slack message or a PR description, run **`/english-improver page`**. It gives you the link to your own English Improver page on claude.ai: paste your text, press **Improve**, and copy the native version. It gives the same kind of notes.
+
+The first time, the mod sets up the page as a private page in your own account, from `page/english-improver.html`. After that, and on another computer, it finds the page you already have. The page needs you to be signed in to claude.ai, and each check counts toward your own Claude usage. Claude Code may ask your permission to set up or find the page, like for any other tool.
+
+To remove the page, delete it from your artifacts on claude.ai. The next `/english-improver page` sets up a new one.
 
 ## Requirements
 
@@ -76,12 +80,13 @@ claude --plugin-dir ~/claude-mods/english-improver
 | `/english-improver off` | Stop checking prompts and hide the band |
 | `/english-improver on` | Start again |
 | `/english-improver` | Switch between on and off |
+| `/english-improver page` | The link to your English Improver page, for writing outside Claude Code |
 
 The setting is remembered across sessions.
 
 ## Privacy
 
-Your prompt's text is sent to Claude Haiku through the same Claude Code login and provider your session already uses, and nowhere else. Nothing is stored: the mod remembers only whether it's on and which mode you picked.
+Your prompt's text is sent to Claude Haiku through the same Claude Code login and provider your session already uses, and nowhere else. Nothing is stored: the mod remembers only whether it's on and which mode you picked. Your English Improver page lives in your own claude.ai account, and keeps nothing but an unsent draft in your browser.
 
 ## Files
 
@@ -91,8 +96,9 @@ english-improver/
 ├── docs/screenshot.png
 ├── hooks/
 │   ├── hooks.json
-│   ├── register.tsx     the band above the prompt, /english-improver, the check after each prompt
+│   ├── register.tsx     the band above the prompt, /english-improver, the check after each prompt, finding or setting up your page
 │   └── english.ts       which prompts are checked, the instructions for Haiku, reading its reply (no I/O)
+├── page/english-improver.html  the English Improver page published to your claude.ai account
 ├── types/index.d.ts
 └── tests/               run with: claude plugin test .
 ```

@@ -56,7 +56,7 @@ To run a mod in the Desktop app, open the **Code** tab, start a session, and typ
 
 Mods run inside Claude Code with your permissions and aren't sandboxed. The mods are small and readable; check `hooks/` in each before installing.
 
-- **English Improver** changes or holds back your prompt only in the mode you pick (by default it doesn't). It sends the prompt's text only to Claude Haiku, through your own Claude Code login, and stores nothing but its on/off setting and mode.
+- **English Improver** changes or holds back your prompt only in the mode you pick (by default it doesn't). It sends the prompt's text only to Claude Haiku, through your own Claude Code login, and stores nothing but its on/off setting and mode. `/english-improver page` sets up your own English Improver page in your claude.ai account the first time.
 - **ADB Explorer** deletes only inside `/sdcard`, always asks first, and defaults to moving files to `/sdcard/_adb_trash/` instead of erasing them.
 - **Mac Cleaner** never deletes: it moves what you confirm to the Trash (Put Back works), and always refuses iCloud Drive, Mail, Photos, Keychains, `~/.ssh` and app containers.
 - **Mac Uninstaller** never moves or deletes anything itself: it shows the app and the leftovers you mark in Finder, and you move them to the Trash there. It only shows `.app` bundles from the app folders and files directly inside the `~/Library` places apps write to, never another app's container, and never anything under `/Library`.
