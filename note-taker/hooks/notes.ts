@@ -75,12 +75,20 @@ export function when(ms: number, now: number): string {
 export const CONNECTOR = 'mcp__claude-artifacts__'
 
 /**
+ * The JSON in an answer from the connector, which may start with a notice
+ * before it (when the answer lists something others wrote).
+ */
+function jsonIn(answer: string): unknown {
+  return JSON.parse(answer.slice(answer.indexOf('{')))
+}
+
+/**
  * The person's own Note Taker page in the connector's list_artifacts answer,
  * `{"artifacts": [{slug, title, rel, url, soft_deleted?}]}`, if they have one.
  */
 export function findNotebookInJson(answer: string): { slug: string; url: string } | undefined {
   try {
-    const list = (JSON.parse(answer) as { artifacts?: Record<string, unknown>[] }).artifacts ?? []
+    const list = (jsonIn(answer) as { artifacts?: Record<string, unknown>[] }).artifacts ?? []
     const page = list.find(a => a.title === 'Note Taker' && a.rel === 'mine' && !a.soft_deleted)
     if (typeof page?.slug === 'string' && typeof page.url === 'string') return { slug: page.slug, url: page.url }
   } catch {
@@ -94,10 +102,10 @@ export function slugIn(answer: string): string | undefined {
   return /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/.exec(answer)?.[0]
 }
 
-/** A string field of a connector answer that is plain JSON: `version` from read_declaration, `id` from db_whoami. */
+/** A string field of a connector answer: `version` from read_declaration, `id` from db_whoami. */
 export function fieldIn(answer: string, field: string): string | undefined {
   try {
-    const v = (JSON.parse(answer) as Record<string, unknown>)[field]
+    const v = (jsonIn(answer) as Record<string, unknown>)[field]
     return typeof v === 'string' && v ? v : undefined
   } catch {
     return undefined

@@ -237,7 +237,8 @@ function fakeConnector(on: any, opts: { saved?: boolean; mine?: boolean; docs?: 
     calls.push(name)
     inputs.push(e)
     const json = (v: unknown) => ({ result: {}, text: JSON.stringify(v) })
-    if (name === 'list_artifacts') return json({ artifacts: pages })
+    // With a notice before the JSON, as when the list has others' content
+    if (name === 'list_artifacts') return { result: {}, text: '<artifact-content-authored-by-others/>\nThis result includes Artifact content written by others.' + JSON.stringify({ artifacts: pages }) }
     if (name === 'publish_version') {
       pages.push({ slug: SLUG, title: e.title, rel: 'mine', url: NEW_URL })
       return json({ slug: SLUG, version: '1-a' })
