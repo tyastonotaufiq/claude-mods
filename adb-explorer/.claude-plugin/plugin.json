@@ -2,6 +2,6 @@
   "name": "adb-explorer",
   "version": "0.3.0",
   "description": "Browse, pull, push and clean files on an Android device over adb, in an /adb-explorer pane inside Claude Code",
-  "author": { "name": "tyastono" },
+  "author": { "name": "Tyastono Taufiq" },
   "types": "./types/index.d.ts"
 }

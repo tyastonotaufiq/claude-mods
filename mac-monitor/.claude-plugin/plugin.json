@@ -2,6 +2,6 @@
   "name": "mac-monitor",
   "version": "0.1.0",
   "description": "See your Mac's CPU, memory, disk and battery in a line above the prompt, with details and the busiest processes in a /mac-monitor pane inside Claude Code",
-  "author": { "name": "tyastono" },
+  "author": { "name": "Tyastono Taufiq" },
   "types": "./types/index.d.ts"
 }
