@@ -10,7 +10,7 @@ A Claude Code plugin for notes you keep beside your work. **`/note-taker`** open
 - Your notes are saved in that page's database, in a private area only you can read. Even if you share the page, other people see an empty notebook, not your notes.
 - The first line of a note is its title.
 - The page updates live. The pane reads your notes when it opens, after each change you make in it, after Claude changes them, and when you press `r`.
-- The pane reads and writes notes through Claude Code's own ArtifactData tool, so Claude Code may ask your permission, like for any other tool.
+- The pane reads and writes notes through Claude Code's own Artifact tools, or, in sessions that don't have them, through the claude.ai artifacts connector. Either way Claude Code may ask your permission, like for any other tool.
 
 ## Asking Claude
 
@@ -66,7 +66,7 @@ claude --plugin-dir ~/claude-mods/note-taker
 
 ## Privacy
 
-Your notes are kept only in your Note Taker page's database on claude.ai, in your private area. On your computer, the mod remembers only your page's link.
+Your notes are kept only in your Note Taker page's database on claude.ai, in your private area. On your computer, the mod remembers only your page's link and id, and your user id on it.
 
 ## Files
 

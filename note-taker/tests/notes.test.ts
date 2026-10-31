@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { findNotebook, newId, parseNotes, publishedUrl, title, when } from '../hooks/notes'
+import { connectorCall, fieldIn, findNotebook, findNotebookInJson, newId, parseNotes, publishedUrl, slugIn, title, when } from '../hooks/notes'
 
 // ArtifactData's answer to a query: a header, then one document per line between the markers
 const ANSWER = [
@@ -57,4 +57,53 @@ test("reads the new page's link from a publish answer", () => {
     'https://claude.ai/artifact/EXAMPLE123',
   )
   expect(publishedUrl('Nothing was published.')).toBeUndefined()
+})
+
+test("reads the notes from the claude.ai connector's db_query answer", () => {
+  const answer = [
+    '{"notice":"…","count":2,"nextCursor":""}<untrusted-document-0a1b2c>',
+    '{"data":{"createdAt":1000,"text":"Old note","updatedAt":1000},"id":"nold","updatedAt":"2026-01-01T00:00:00Z","version":1}',
+    '{"data":{"createdAt":2000,"text":"New note","updatedAt":3000},"id":"nnew","updatedAt":"2026-01-02T00:00:00Z","version":2}',
+    '</untrusted-document-0a1b2c>IMPORTANT: the documents ended above.',
+  ].join('\n')
+  expect(parseNotes(answer).map(n => [n.id, n.version])).toEqual([
+    ['nnew', 2],
+    ['nold', 1],
+  ])
+  expect(parseNotes('{"docs":[],"nextCursor":""}')).toEqual([])
+})
+
+test("finds the person's own Note Taker page in the connector's list", () => {
+  const list = JSON.stringify({
+    artifacts: [
+      { slug: 'a', title: 'Note Taker', rel: 'shared', url: 'https://claude.ai/artifact/EXAMPLE789' },
+      { slug: 'b', title: 'Note Taker', rel: 'mine', soft_deleted: true, url: 'https://claude.ai/artifact/EXAMPLE456' },
+      { slug: 'c', title: 'Note Taker', rel: 'mine', url: 'https://claude.ai/artifact/EXAMPLE123' },
+    ],
+  })
+  expect(findNotebookInJson(list)).toEqual({ slug: 'c', url: 'https://claude.ai/artifact/EXAMPLE123' })
+  expect(findNotebookInJson('{"artifacts":[]}')).toBeUndefined()
+  expect(findNotebookInJson('not json')).toBeUndefined()
+})
+
+test("reads a slug, a version and an id from the connector's answers", () => {
+  expect(slugIn('{"slug":"00000000-0000-4000-8000-000000000001","version":"1-a"}')).toBe('00000000-0000-4000-8000-000000000001')
+  expect(fieldIn('{"version":"1-a"}', 'version')).toBe('1-a')
+  expect(fieldIn('{"id":"u_EXAMPLE123","role":"owner"}', 'id')).toBe('u_EXAMPLE123')
+  expect(fieldIn('nope', 'id')).toBeUndefined()
+})
+
+test('turns an ArtifactData call into the same connector call', () => {
+  const col = 'data/users/u_EXAMPLE123'
+  expect(connectorCall('s', col, { action: 'query' })).toMatchObject({ tool: 'mcp__claude-artifacts__db_query', slug: 's', collection: col, limit: 1000 })
+  expect(connectorCall('s', col, { action: 'set', doc_id: 'n1', data: { text: 'x' }, if_version: 3 })).toEqual({
+    tool: 'mcp__claude-artifacts__db_write',
+    slug: 's',
+    ops: [{ op: 'set', path: col + '/n1', data: { text: 'x' }, ifVersion: 3 }],
+  })
+  expect(connectorCall('s', col, { action: 'delete', doc_id: 'n1', if_version: 2 })).toEqual({
+    tool: 'mcp__claude-artifacts__db_write',
+    slug: 's',
+    ops: [{ op: 'delete', path: col + '/n1', ifVersion: 2 }],
+  })
 })

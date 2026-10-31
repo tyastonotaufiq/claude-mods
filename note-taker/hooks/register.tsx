@@ -6,8 +6,9 @@
 // "Note Taker" page they already have (made on another computer), or publishes
 // page/note-taker.html as a new one, and remembers its link. The notes live in
 // the page's database, in the person's private `data/users/<id>` collection.
-// The pane reads and writes them through Claude Code's own ArtifactData tool,
-// so each call goes through the usual permission check. The pane doesn't
+// The pane reads and writes them through Claude Code's own Artifact and
+// ArtifactData tools where the session has them, else through the claude.ai
+// artifacts connector, so each call goes through the usual permission check. The pane doesn't
 // update live: it reads the notes when it opens, after each change it makes,
 // after Claude changes them, and on Refresh.
 
@@ -15,12 +16,32 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { Note } from '../types'
-import { findNotebook, newId, parseNotes, publishedUrl, title, when } from './notes'
+import {
+  CONNECTOR,
+  connectorCall,
+  fieldIn,
+  findNotebook,
+  findNotebookInJson,
+  newId,
+  parseNotes,
+  publishedUrl,
+  slugIn,
+  title,
+  when,
+} from './notes'
 
 const PANE = 'note-taker'
 const TOOL = 'mcp__note-taker__notebook'
-/** The signed-in person's own notes; ArtifactData reads `me` as their id. */
+/** The signed-in person's own notes; ArtifactData reads `me` as their id (the connector doesn't). */
 const COLLECTION = 'data/users/me'
+/** What the pane remembers about the page across sessions. */
+const KEYS = ['notebookUrl', 'notebookSlug', 'notebookUser'] as const
+
+/**
+ * Where the notes are: the page's link, and for the connector its slug and the
+ * person's own collection. `via` names the tools that reach it.
+ */
+type Place = { via: 'builtin' | 'connector'; url: string; slug: string; collection: string }
 
 const notes = atom({ plugin: 'note-taker', key: 'notes' } as const, [] as Note[])
 const loaded = atom({ plugin: 'note-taker', key: 'loaded' } as const, false)
@@ -35,7 +56,7 @@ type $ = EngineInterface
 /** The pane's own ArtifactData calls running, so the tool.call hook doesn't reload for them. */
 let ownCalls = 0
 /** The page being found or made, so two callers at once don't make two pages. */
-let finding: Promise<string> | undefined
+let finding: Promise<Place> | undefined
 
 function errorText(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
@@ -49,45 +70,95 @@ async function run($: $, input: Record<string, unknown>, pressed: string): Promi
   return r.text ?? ''
 }
 
-/** The person's own Note Taker page: the one remembered, else one they already have, else a new one. */
-function notebookUrl($: $, pressed: string): Promise<string> {
-  finding ??= (async () => {
-    const saved = await $.store.get('notebookUrl')
-    if (typeof saved === 'string' && saved) return saved
-    let url = findNotebook(await run($, { tool: 'Artifact', action: 'list', limit: 200 }, pressed))
-    if (!url) {
-      const page = `${$.plugin.root}/page/note-taker.html`
-      // The Artifact tool publishes only a file it has seen read
-      await run($, { tool: 'Read', file_path: page }, pressed)
-      const answer = await run(
-        $,
-        {
-          tool: 'Artifact',
-          action: 'publish',
-          file_path: page,
-          icon: 'notes',
-          description: 'Your private notes, the same ones the Note Taker mod shows in Claude Code.',
-          capabilities: { db: {}, user: {} },
-        },
-        pressed,
-      )
-      url = publishedUrl(answer)
-      if (!url) throw new Error('the page was published, but its link was not in the answer')
+async function saved($: $, key: (typeof KEYS)[number]): Promise<string> {
+  const v = await $.store.get(key)
+  return typeof v === 'string' ? v : ''
+}
+
+/** Claude Code's own Artifact tools where the session has them, else the claude.ai artifacts connector. */
+async function via($: $): Promise<Place['via']> {
+  const names = (await $.tool.list()).map(t => t.name)
+  if (names.includes('Artifact') && names.includes('ArtifactData')) return 'builtin'
+  if (names.includes(CONNECTOR + 'db_write')) return 'connector'
+  throw new Error("this session has neither Claude Code's Artifact tools nor the claude.ai artifacts connector. Sign in to Claude Code with your Claude account.")
+}
+
+/** The person's own Note Taker page through the Artifact tool: the one they already have, else a new one. */
+async function builtinPage($: $, pressed: string): Promise<string> {
+  const found = findNotebook(await run($, { tool: 'Artifact', action: 'list', limit: 200 }, pressed))
+  if (found) return found
+  const page = `${$.plugin.root}/page/note-taker.html`
+  // The Artifact tool publishes only a file it has seen read
+  await run($, { tool: 'Read', file_path: page }, pressed)
+  const answer = await run(
+    $,
+    {
+      tool: 'Artifact',
+      action: 'publish',
+      file_path: page,
+      icon: 'notes',
+      description: 'Your private notes, the same ones the Note Taker mod shows in Claude Code.',
+      capabilities: { db: {}, user: {} },
+    },
+    pressed,
+  )
+  const url = publishedUrl(answer)
+  if (!url) throw new Error('the page was published, but its link was not in the answer')
+  return url
+}
+
+/** The same through the connector, which also needs the page's slug. */
+async function connectorPage($: $, pressed: string): Promise<{ slug: string; url: string }> {
+  const list = async () => findNotebookInJson(await run($, { tool: CONNECTOR + 'list_artifacts', limit: 200 }, pressed))
+  const found = await list()
+  if (found) return found
+  const content = '<!DOCTYPE html>\n' + String(await $.fs.read(`${$.plugin.root}/page/note-taker.html`))
+  const slug = slugIn(await run($, { tool: CONNECTOR + 'publish_version', title: 'Note Taker', icon: 'notes', content }, pressed))
+  if (!slug) throw new Error('the page was published, but its id was not in the answer')
+  // The page keeps notes in its database, private to each signed-in person
+  const version = fieldIn(await run($, { tool: CONNECTOR + 'read_declaration', slug }, pressed), 'version')
+  if (!version) throw new Error('the page was published, but its version could not be read')
+  await run($, { tool: CONNECTOR + 'declare_capabilities', slug, base_version: version, capabilities: { db: {}, user: {} } }, pressed)
+  const made = await list()
+  if (!made) throw new Error('the page was published, but it was not in your list')
+  return made
+}
+
+/** Where the person's notes are: remembered, else found or set up now. */
+function place($: $, pressed: string): Promise<Place> {
+  finding ??= (async (): Promise<Place> => {
+    const how = await via($)
+    const url = await saved($, 'notebookUrl')
+    if (how === 'builtin') {
+      if (url) return { via: how, url, slug: '', collection: COLLECTION }
+      const made = await builtinPage($, pressed)
+      await $.store.set('notebookUrl', made)
+      return { via: how, url: made, slug: '', collection: COLLECTION }
     }
-    await $.store.set('notebookUrl', url)
-    return url
+    const slug = await saved($, 'notebookSlug')
+    const user = await saved($, 'notebookUser')
+    if (url && slug && user) return { via: how, url, slug, collection: 'data/users/' + user }
+    const page = await connectorPage($, pressed)
+    // The connector needs the person's own id where ArtifactData takes `me`
+    const id = fieldIn(await run($, { tool: CONNECTOR + 'db_whoami', slug: page.slug }, pressed), 'id')
+    if (!id) throw new Error('could not read your user id on the page')
+    await $.store.set('notebookUrl', page.url)
+    await $.store.set('notebookSlug', page.slug)
+    await $.store.set('notebookUser', id)
+    return { via: how, url: page.url, slug: page.slug, collection: 'data/users/' + id }
   })().finally(() => {
     finding = undefined
   })
   return finding
 }
 
-/** Runs ArtifactData on the person's notes. */
+/** Runs an ArtifactData call (query, set or delete) on the person's notes, through whichever tools reach them. */
 async function notebook($: $, input: Record<string, unknown>, pressed: string): Promise<string> {
-  const url = await notebookUrl($, pressed)
+  const p = await place($, pressed)
   ownCalls++
   try {
-    return await run($, { tool: 'ArtifactData', url, collection: COLLECTION, ...input }, pressed)
+    const call = p.via === 'builtin' ? { tool: 'ArtifactData', url: p.url, collection: p.collection, ...input } : connectorCall(p.slug, p.collection, input)
+    return await run($, call, pressed)
   } finally {
     ownCalls--
   }
@@ -106,7 +177,7 @@ async function load($: $, pressed = 'Open') {
   } catch (err) {
     await update($, message, () => 'Could not read your notes: ' + errorText(err) + ' Press r to try again.')
     // The page may have been deleted: next time, look for it again (or make a new one)
-    await $.store.delete('notebookUrl')
+    for (const key of KEYS) await $.store.delete(key)
   } finally {
     await update($, busy, () => '')
   }
@@ -168,7 +239,7 @@ export const register: Register = on => {
     await $.tool.register({
       name: 'notebook',
       description:
-        "Returns the link of the user's own Note Taker page on claude.ai and the collection their notes are in, setting up the page the first time, plus the current time (`now`, ms) and an id for a new note (`newId`). Call it before reading or writing their notes with ArtifactData.",
+        "Returns where the user's notes are: the link of their own Note Taker page on claude.ai, the collection their notes are in, and which tools reach them (`tools`), setting up the page the first time, plus the current time (`now`, ms) and an id for a new note (`newId`). Call it before reading or writing their notes.",
       inputSchema: { type: 'object', properties: {} },
     })
     try {
@@ -187,10 +258,14 @@ export const register: Register = on => {
 
   on('tool.call', { tool: TOOL }, async $ => {
     try {
-      const url = await notebookUrl($, 'notebook')
+      const p = await place($, 'notebook')
       // The time and an id for a new note, so Claude needs no shell to make them
       const now = await $.clock.now()
-      return { result: JSON.stringify({ url, collection: COLLECTION, now, newId: newId(now, Math.random()) }) }
+      const where =
+        p.via === 'builtin'
+          ? { tools: 'ArtifactData', url: p.url, collection: p.collection }
+          : { tools: 'claude-artifacts connector (db_query, db_write)', url: p.url, slug: p.slug, collection: p.collection }
+      return { result: JSON.stringify({ ...where, now, newId: newId(now, Math.random()) }) }
     } catch (err) {
       return { result: JSON.stringify({ error: 'Could not find or set up the Note Taker page: ' + errorText(err) }) }
     }
@@ -202,7 +277,19 @@ export const register: Register = on => {
     const input = e as unknown as { url?: string; action?: string }
     const isWrite = !['get', 'list', 'query', 'profiles'].includes(input.action ?? '')
     try {
-      if (!ownCalls && isWrite && input.url === (await $.store.get('notebookUrl')) && (await read($, loaded))) void load($, 'Refresh')
+      if (!ownCalls && isWrite && input.url === (await saved($, 'notebookUrl')) && (await read($, loaded))) void load($, 'Refresh')
+    } catch {
+      // Only the pane's refresh is lost; the call itself went through
+    }
+    return r
+  }).catch(($, e, next) => next(e))
+
+  // The connector's tools are typed only where it was connected when the types were written
+  on('tool.call', { tool: (CONNECTOR + 'db_write') as never }, async ($, e, next) => {
+    const r = await next(e)
+    const input = e as unknown as { slug?: string }
+    try {
+      if (!ownCalls && input.slug && input.slug === (await saved($, 'notebookSlug')) && (await read($, loaded))) void load($, 'Refresh')
     } catch {
       // Only the pane's refresh is lost; the call itself went through
     }
