@@ -95,6 +95,21 @@ test("doesn't check short replies, or a plugin's own messages", async ($, on) =>
   expect(asked).toEqual([])
 })
 
+test("the next prompt hides the band, even one that isn't checked; a plugin's message doesn't", async ($, on) => {
+  engine(on, [])
+  await start($)
+  await type($, 'can i mark all here?')
+  const ui = await mount($, 'terminal')
+  expect(await ui.find({ text: /✎/ })).toBeDefined()
+
+  await $.prompt.submit({ text: 'The build finished with two warnings.', wait: false, origin: { kind: 'plugin', name: 'ci' } })
+  expect(await ui.find({ text: /✎/ })).toBeDefined()
+
+  await type($, 'yes')
+  expect(await ui.find({ text: /✎/ })).toBeUndefined()
+  await ui.unmount()
+})
+
 test('/english-improver off stops checking and hides the band; on brings it back', async ($, on) => {
   const asked: string[] = []
   engine(on, asked)

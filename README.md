@@ -4,7 +4,7 @@ Claude Code mods: most add a working pane to Claude Code, plus a skill so you ca
 
 | Mod | Command | What it does |
 | --- | --- | --- |
-| [English Improver](./english-improver) | `/english-improver` (on/off) | For non-native speakers: after each prompt you send, shows how a native speaker would write it, with a short note on each change, above the prompt box. Your prompt goes to Claude unchanged, or, if you choose, rewritten. |
+| [English Improver](./english-improver) | `/english-improver` (on/off, page) | For non-native speakers: after each prompt you send, shows how a native speaker would write it, with a short note on each change, above the prompt box. Your prompt goes to Claude unchanged, or, if you choose, rewritten. `/english-improver page` gives you your own page on claude.ai for checking any other writing. |
 | [ADB Explorer](./adb-explorer) | `/adb-explorer` | Browse files on an Android phone over `adb`: folder sizes, copy to and from your Mac, delete with confirmation (moves to a device-side trash by default). |
 | [Mac Cleaner](./mac-cleaner) | `/mac-cleaner` | See what's using space on your Mac (caches, logs, Xcode, Gradle, emulators, npm…), mark what to remove, and move it to the Trash. Claude can dig deeper and add its findings to the pane. |
 | [Mac Uninstaller](./mac-uninstaller) | `/mac-uninstaller` | Uninstall an app together with the caches, settings and containers it leaves in `~/Library`, like AppCleaner, and clean up what already-removed apps left behind. Shows them in Finder, selected, for you to move to the Trash. |
@@ -46,8 +46,8 @@ To run a mod in the Desktop app, open the **Code** tab, start a session, and typ
 
 ## Requirements
 
-- Claude Code v2.1.287 or later (terminal, or the Code tab of the Desktop app v2.1.286+)
-- English Improver: access to Claude Haiku (one small call per checked prompt)
+- Claude Code v2.1.287 or later, in the terminal or the Code tab of the Claude Desktop app
+- English Improver: access to Claude Haiku (one small call per checked prompt); for its page, Claude Code signed in with your Claude account
 - ADB Explorer: `adb` from Android Studio's SDK (found automatically), or `brew install android-platform-tools` without Android Studio; and USB debugging on the phone, or Wireless debugging over Wi-Fi
 - Mac Cleaner, Mac Uninstaller, Mac Caffeinater, Mac Monitor: macOS
 - Note Taker: Claude Code signed in with your Claude account, as it keeps your notes on a claude.ai page

@@ -19,7 +19,7 @@ A Claude Code plugin for people who write to Claude in English as a second langu
 - Your prompt goes to Claude exactly as you typed it, at once. Claude understands it fine either way; the suggestion is for you.
 - At the same time, the mod asks Claude Haiku for a more natural version. When it's ready (usually a second or two), it appears above the prompt box while Claude works on your request. It stays until your next prompt. To hide it sooner, press the band's `[-]` (or ctrl+x ctrl+a).
 - **Mode** changes what happens to your prompts (see below).
-- Nothing shows when your prompt already reads naturally, or when the only change would be capital letters.
+- Nothing shows when your prompt already reads naturally, or when the only change would be capital letters or a full stop at the end.
 - It keeps your tone: a casual prompt stays casual, a short one stays short. Code, file paths, commands and technical terms are left exactly as written.
 
 ## Modes
@@ -48,7 +48,7 @@ What isn't checked:
 
 The mod only checks prompts you send in Claude Code. For anything else, like an email, a Slack message or a PR description, run **`/english-improver page`**. It gives you the link to your own English Improver page on claude.ai: paste your text, press **Improve**, and copy the native version. It gives the same kind of notes.
 
-The first time, the mod sets up the page as a private page in your own account, from `page/english-improver.html`. After that, and on another computer, it finds the page you already have. The page needs you to be signed in to claude.ai, and each check counts toward your own Claude usage. Claude Code may ask your permission to set up or find the page, like for any other tool.
+The first time, the mod sets up the page as a private page in your own account, from `page/english-improver.html`. After that, and on another computer, it finds the page you already have. Setting it up or finding it needs Claude Code signed in with your Claude account. The page needs you to be signed in to claude.ai, and each check counts toward your own Claude usage. Claude Code may ask your permission to set up or find the page, like for any other tool.
 
 To remove the page, delete it from your artifacts on claude.ai. The next `/english-improver page` sets up a new one.
 
@@ -56,6 +56,7 @@ To remove the page, delete it from your artifacts on claude.ai. The next `/engli
 
 - Claude Code v2.1.287 or later, in the terminal or the Code tab of the Claude Desktop app
 - Access to Claude Haiku through your Claude Code login. Each checked prompt is one small Haiku call; it counts toward your usage like any other.
+- For `/english-improver page`: Claude Code signed in with your Claude account (the page lives on claude.ai)
 
 ## Install
 
@@ -73,7 +74,7 @@ To load it from a folder for one session:
 claude --plugin-dir ~/claude-mods/english-improver
 ```
 
-## Turning it off
+## Commands
 
 | Command | Does |
 | --- | --- |
@@ -86,7 +87,7 @@ The setting is remembered across sessions.
 
 ## Privacy
 
-Your prompt's text is sent to Claude Haiku through the same Claude Code login and provider your session already uses, and nowhere else. Nothing is stored: the mod remembers only whether it's on and which mode you picked. Your English Improver page lives in your own claude.ai account, and keeps nothing but an unsent draft in your browser.
+Your prompt's own words are sent to Claude Haiku (code blocks in it are not) through the same Claude Code login and provider your session already uses, and nowhere else. Nothing is stored: the mod remembers only whether it's on and which mode you picked. Your English Improver page lives in your own claude.ai account, and keeps nothing but an unsent draft in your browser.
 
 ## Files
 

@@ -59,8 +59,7 @@ function isPersons(origin: PromptOrigin | undefined): boolean {
  * newer prompt came in meanwhile. A prompt that waits is held at most `timeoutMs`.
  */
 async function check($: $, text: string, timeoutMs: number): Promise<Suggestion | undefined> {
-  const id = ++latest
-  await update($, suggestion, () => null)
+  const id = latest
   const prose = proseOf(text)
   const r = await $.model.complete({
     model: MODEL,
@@ -200,9 +199,11 @@ export const register: Register = on => {
   })
 
   on('prompt.submit', async ($, e, next) => {
-    if (e.command || e.isMeta || !isPersons(e.origin) || !shouldCheck(e.text) || !(await read($, enabled))) {
-      return next(e)
-    }
+    if (e.isMeta || !isPersons(e.origin)) return next(e)
+    // Any new prompt of theirs hides the last suggestion, and drops a reply still coming for it
+    latest++
+    await update($, suggestion, () => null)
+    if (e.command || !shouldCheck(e.text) || !(await read($, enabled))) return next(e)
     const m = await read($, mode)
     // A rewrite would lose the code blocks the check leaves out, so those are only shown
     if (m === 'show' || e.text.includes('```')) {
