@@ -6,13 +6,13 @@ describe('which prompts are checked', () => {
   test('a few words of prose', async () => {
     expect(shouldCheck('can i mark all here?')).toBe(true)
     expect(shouldCheck('please fix the bug in `src/app.ts`')).toBe(true)
+    expect(shouldCheck('# why this test fail on CI?')).toBe(true)
   })
 
-  test('not short replies, shell commands, memory notes or long pastes', async () => {
+  test('not short replies, shell commands or long pastes', async () => {
     expect(shouldCheck('yes')).toBe(false)
     expect(shouldCheck('go ahead')).toBe(false)
     expect(shouldCheck('!git status --short')).toBe(false)
-    expect(shouldCheck('# always use pnpm here')).toBe(false)
     expect(shouldCheck('why this fail ' + 'x'.repeat(2100))).toBe(false)
     expect(shouldCheck('```\nconst a = 1\nconst b = 2\nconst c = 3\n```')).toBe(false)
   })

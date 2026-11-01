@@ -35,11 +35,11 @@ export function proseOf(text: string): string {
 
 /**
  * Whether a prompt is worth checking: a few words of prose, not a shell
- * command (`!ls`), a memory note (`#…`) or a long paste.
+ * command (`!ls`) or a long paste.
  */
 export function shouldCheck(text: string): boolean {
   const t = text.trim()
-  if (!t || t.startsWith('!') || t.startsWith('#')) return false
+  if (!t || t.startsWith('!')) return false
   const prose = proseOf(t)
   if (prose.length > MAX_CHARS) return false
   const words = prose.match(/[A-Za-z][A-Za-z'’-]*/g) ?? []

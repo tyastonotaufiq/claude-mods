@@ -39,7 +39,7 @@ In every mode, Claude gets your prompt exactly as typed when:
 
 What isn't checked:
 - slash commands
-- `!` shell commands and `#` memory notes
+- `!` shell commands
 - replies of one or two words ("yes", "go ahead")
 - code blocks inside a prompt (only your own words around them are checked)
 - prompts with more than 2,000 characters of prose, which are usually pastes

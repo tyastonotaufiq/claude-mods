@@ -1,6 +1,6 @@
 {
   "name": "english-improver",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Shows how a native speaker would write each prompt you send, with short notes, in a band above the prompt",
   "author": { "name": "Tyastono Taufiq" },
   "types": "./types/index.d.ts"
